@@ -300,7 +300,7 @@ void *listen_port(void *_listen_idx)
         if( bind_attempts == 1 )
         {
             flog( LOG_ERROR, "unable to bind socket. errno=%d. retrying up to %d seconds...", errno, max_bind_attempts );
-            printf( "unable to bind socket. errno=%d. retrying up to %d seconds...", errno, max_bind_attempts );
+            printf( "unable to bind socket. errno=%d. retrying up to %d seconds...\n", errno, max_bind_attempts );
         }
         else
             flog( LOG_DEBUG, "unable to bind socket. errno=%d. retrying up to %d seconds...", errno, max_bind_attempts-bind_attempts+1 );
