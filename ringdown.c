@@ -443,6 +443,7 @@ int main(int argc, char *argv[])
         sleep(1);
     }
     
+    flog(LOG_INFO, "ringdown exiting.");
     
     close_log();
     
