@@ -154,6 +154,7 @@ void *serve_client(void *_args)
     int destaddr_ofs = 0;
     FILE *failmsg_file;
     int readbyte;
+    int was_connected = 0;
     
 
     // set srcfd to non-blocking
@@ -214,6 +215,7 @@ void *serve_client(void *_args)
         }
 
         passthru_connection( args->srcfd, args->address, destfd, serv_addr.sin_addr, ntohs(serv_addr.sin_port) );
+        was_connected = 1;
 
         close(destfd);
         snprintf( log_text, sizeof(log_text), "%s:%d", inet_ntoa(serv_addr.sin_addr), ntohs(serv_addr.sin_port) );
@@ -223,7 +225,7 @@ void *serve_client(void *_args)
     }
     // no connection possible
 
-    if( strlen(failmsg_filename) && (failmsg_file = fopen( failmsg_filename, "rt" )) )
+    if( !was_connected && strlen(failmsg_filename) && (failmsg_file = fopen( failmsg_filename, "rt" )) )
     {
         while( !feof(failmsg_file) && !ferror(failmsg_file) )
         {
