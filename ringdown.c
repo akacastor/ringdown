@@ -225,7 +225,7 @@ void *serve_client(void *_args)
     }
     // no connection possible
 
-    if( was_connected && strlen(failmsg_filename) && (failmsg_file = fopen( failmsg_filename, "rt" )) )
+    if( (!was_connected) && strlen(failmsg_filename) && (failmsg_file = fopen( failmsg_filename, "rt" )) )
     {
         while( !feof(failmsg_file) && !ferror(failmsg_file) )
         {
