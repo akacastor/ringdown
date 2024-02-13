@@ -250,6 +250,8 @@ void *serve_client(void *_args)
 
 
     close(args->srcfd);
+    
+    free(args);
 
 
     return NULL;
@@ -259,13 +261,14 @@ void *serve_client(void *_args)
 void *listen_port(void *_listen_idx)
 {
     int *listen_idx = (int *)_listen_idx;
-    int listenfd = 0, connfd = 0;
+    int listenfd = 0;
+    int connfd = 0;
     struct sockaddr_in serv_addr; 
     struct sockaddr_in address;
     socklen_t address_len = sizeof(address);
     int bind_attempts;
     int max_bind_attempts = 60;
-    struct _serve_client_args serve_client_args;
+    struct _serve_client_args *serve_client_args;
 	pthread_t thread_id;
 
     
@@ -337,10 +340,18 @@ void *listen_port(void *_listen_idx)
             continue;
         }
 
-        serve_client_args.srcfd = connfd;
-        serve_client_args.address = address;
-        serve_client_args.listen_idx = *listen_idx;
-        if( pthread_create( &thread_id, NULL , serve_client, (void*) &serve_client_args) < 0)
+        // it will be the responsibility of serve_client() to free serve_client_args
+        serve_client_args = (struct _serve_client_args *)calloc(1, sizeof(struct _serve_client_args));
+        if( !serve_client_args )
+        {
+            flog( LOG_ERROR, "error allocating serve_client_args!" );
+            continue;
+        }
+
+        serve_client_args->srcfd = connfd;
+        serve_client_args->address = address;
+        serve_client_args->listen_idx = *listen_idx;
+        if( pthread_create( &thread_id, NULL , serve_client, (void*) serve_client_args) < 0)
         {
             perror("could not create thread");
             break;
