@@ -269,7 +269,7 @@ void *serve_client(void *_args)
                 readbyte = fgetc(failmsg_file);
                 if( feof(failmsg_file) || ferror(failmsg_file) )
                     break;
-            }        
+            }
             
             if( write( args->srcfd, &readbyte, 1 ) < 0 )
             {
@@ -282,6 +282,7 @@ void *serve_client(void *_args)
             readbyte = -1;  // set readbyte to -1 so next byte will be read from file
         }
         
+        sleep(2);        // sleep so failmsg is sent before socket is closed
         fclose(failmsg_file);
     }
 
