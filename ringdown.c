@@ -62,7 +62,8 @@ void passthru_connection( int srcfd, struct sockaddr_in srcaddress, int destfd, 
     char txcharbuf[txbuf_len];
     int rx_pkt_size = 1;        // receive at most 1 byte at a time
     int tx_pkt_size = 1;        // send at most 1 byte at a time
-
+    time_t ticks;
+    
 
     if( !InitCBuf( &srcrxbuf, rxbuf_len ) )
     {
@@ -77,6 +78,7 @@ void passthru_connection( int srcfd, struct sockaddr_in srcaddress, int destfd, 
     }
 
 
+    ticks = time(NULL);
     while( connected )
     {
         // check for data from source
@@ -141,6 +143,9 @@ void passthru_connection( int srcfd, struct sockaddr_in srcaddress, int destfd, 
                     break;  // disconnected
             }
         }
+
+        if( (serve_client_args->bytes_rx == 0) && (time(NULL) - ticks > 5) )
+            break;  // disconnect from this destaddr and attempt next destaddr    
 
         // maybe should use poll() instead of nonblocking and a sleep?
         usleep(50);
