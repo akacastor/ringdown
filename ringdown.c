@@ -43,11 +43,14 @@ struct _serve_client_args
     struct sockaddr_in address;
 
     int listen_idx;
+    
+    unsigned long bytes_rx;
+    unsigned long bytes_tx;
 };
 
 
 
-void passthru_connection( int srcfd, struct sockaddr_in srcaddress, int destfd, struct in_addr destaddress, unsigned int destport )
+void passthru_connection( int srcfd, struct sockaddr_in srcaddress, int destfd, struct in_addr destaddress, unsigned int destport, struct _serve_client_args *serve_client_args )
 {
     int connected = 1;
     const int rxbuf_len = 1024;
@@ -81,7 +84,10 @@ void passthru_connection( int srcfd, struct sockaddr_in srcaddress, int destfd, 
         if( n < 0 && !(errno == EAGAIN || errno == EWOULDBLOCK) )
             break;  // disconnected
         else if( n > 0 )
+        {
             AddDataToCBuf( &srcrxbuf, (uint8_t *)rxcharbuf, n );
+            serve_client_args->bytes_tx++;
+        }
         else if( n == 0 )
             break;  // disconnected
 
@@ -91,7 +97,10 @@ void passthru_connection( int srcfd, struct sockaddr_in srcaddress, int destfd, 
         if( n < 0 && !(errno == EAGAIN || errno == EWOULDBLOCK) )
             break;  // disconnected
         else if( n > 0 )
+        {
             AddDataToCBuf( &destrxbuf, (uint8_t *)rxcharbuf, n );
+            serve_client_args->bytes_rx++;
+        }
         else if( n == 0 )
             break;  // disconnected
 
@@ -214,12 +223,20 @@ void *serve_client(void *_args)
             flog( LOG_INFO, "connected %s to %s:%d", log_text, inet_ntoa(serv_addr.sin_addr), ntohs(serv_addr.sin_port) );
         }
 
-        passthru_connection( args->srcfd, args->address, destfd, serv_addr.sin_addr, ntohs(serv_addr.sin_port) );
+        passthru_connection( args->srcfd, args->address, destfd, serv_addr.sin_addr, ntohs(serv_addr.sin_port), args );
+
+        snprintf( log_text, sizeof(log_text), "%s:%d", inet_ntoa(serv_addr.sin_addr), ntohs(serv_addr.sin_port) );
+        flog( LOG_INFO, "disconnected %s from %s", inet_ntoa(args->address.sin_addr), log_text ); // printing wrong address/port!
+
+        if( args->bytes_rx < 1 )
+        {
+            close(destfd);
+            continue;
+        }
+
         was_connected = 1;
 
         close(destfd);
-        snprintf( log_text, sizeof(log_text), "%s:%d", inet_ntoa(serv_addr.sin_addr), ntohs(serv_addr.sin_port) );
-        flog( LOG_INFO, "disconnected %s from %s", inet_ntoa(args->address.sin_addr), log_text ); // printing wrong address/port!
         
         break;
     }
