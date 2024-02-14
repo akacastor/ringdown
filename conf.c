@@ -158,7 +158,7 @@ int read_conf_file(const char *filename)
             
             no_answer_time = strtoul( val, NULL, 0 );
             
-            flog( LOG_DEBUG, "no_answer_time: '%d'", no_answer_time );
+            flog( LOG_DEBUG, "no_answer_time: %d", no_answer_time );
         }
         else
         {
