@@ -198,8 +198,9 @@ void *serve_client(void *_args)
         serv_addr.sin_addr = listenaddr[args->listen_idx].destaddr[(i + destaddr_ofs) % listenaddr[args->listen_idx].num_destaddr].addr;
         serv_addr.sin_port = htons(listenaddr[args->listen_idx].destaddr[(i + destaddr_ofs) % listenaddr[args->listen_idx].num_destaddr].port);
 
+        snprintf( log_text, sizeof(log_text), "%s", inet_ntoa(args->address.sin_addr) );
         addr_text = inet_ntoa(serv_addr.sin_addr);
-        flog( LOG_DEBUG, "attempting to connect to %s:%d", addr_text, ntohs(serv_addr.sin_port) );
+        flog( LOG_DEBUG, "attempting to connect %s to %s:%d", log_text, addr_text, ntohs(serv_addr.sin_port) );
 
         if( connect(destfd, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0)
         {
