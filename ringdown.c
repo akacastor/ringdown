@@ -65,6 +65,7 @@ void passthru_connection( int srcfd, struct sockaddr_in srcaddress, int destfd, 
     int rx_pkt_size = 1;        // receive at most 1 byte at a time
     int tx_pkt_size = 1;        // send at most 1 byte at a time
     time_t ticks;
+    int processed_data;         // flag indicating if any data was processed this round through while() loop
     
 
     if( !InitCBuf( &srcrxbuf, rxbuf_len ) )
@@ -83,6 +84,8 @@ void passthru_connection( int srcfd, struct sockaddr_in srcaddress, int destfd, 
     ticks = time(NULL);
     while( connected )
     {
+        processed_data = 0;
+        
         // check for data from source
         n = read( srcfd, rxcharbuf, rx_pkt_size );
         if( n < 0 && !(errno == EAGAIN || errno == EWOULDBLOCK) )
@@ -91,6 +94,7 @@ void passthru_connection( int srcfd, struct sockaddr_in srcaddress, int destfd, 
         {
             AddDataToCBuf( &srcrxbuf, (uint8_t *)rxcharbuf, n );
             serve_client_args->bytes_tx++;
+            processed_data++;
         }
         else if( n == 0 )
             break;  // disconnected
@@ -104,6 +108,7 @@ void passthru_connection( int srcfd, struct sockaddr_in srcaddress, int destfd, 
         {
             AddDataToCBuf( &destrxbuf, (uint8_t *)rxcharbuf, n );
             serve_client_args->bytes_rx++;
+            processed_data++;
         }
         else if( n == 0 )
             break;  // disconnected
@@ -126,6 +131,7 @@ void passthru_connection( int srcfd, struct sockaddr_in srcaddress, int destfd, 
                 else
                     break;  // disconnected
             }
+            processed_data++;
         }
         if( (n = CheckCBuf( &destrxbuf )) )
         {
@@ -144,13 +150,17 @@ void passthru_connection( int srcfd, struct sockaddr_in srcaddress, int destfd, 
                 else
                     break;  // disconnected
             }
+            processed_data++;
         }
 
         if( (no_answer_time > 0) && (serve_client_args->bytes_rx == 0) && (time(NULL) - ticks > no_answer_time) )
             break;  // disconnect from this destaddr and attempt next destaddr    
 
-        // maybe should use poll() instead of nonblocking and a sleep?
-        usleep(50);
+        if( !processed_data )
+        {
+            // maybe should use poll() instead of nonblocking and a sleep?
+            usleep(50);
+        }
     }
 
     
