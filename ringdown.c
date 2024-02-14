@@ -36,6 +36,8 @@ int num_listenaddr = 0;
 
 char failmsg_filename[1024] = {0};
 
+int no_answer_time = 0;         // time (in seconds) after which we will disconnect from destaddr if they haven't sent any data yet
+
 
 struct _serve_client_args
 {
@@ -144,7 +146,7 @@ void passthru_connection( int srcfd, struct sockaddr_in srcaddress, int destfd, 
             }
         }
 
-        if( (serve_client_args->bytes_rx == 0) && (time(NULL) - ticks > 5) )
+        if( (no_answer_time > 0) && (serve_client_args->bytes_rx == 0) && (time(NULL) - ticks > no_answer_time) )
             break;  // disconnect from this destaddr and attempt next destaddr    
 
         // maybe should use poll() instead of nonblocking and a sleep?

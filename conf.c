@@ -147,6 +147,19 @@ int read_conf_file(const char *filename)
             
             flog( LOG_DEBUG, "failmsg filename: '%s'", failmsg_filename );
         }
+        else if( !strcasecmp( tok, "no_answer_time" ) )
+        {            
+            val = strtok( NULL, filename_sep );
+            if( !val )
+            {
+                flog( LOG_ERROR, "conf line %d: no_answer_time requires parameter (time in seconds)", line_num );
+                continue;
+            }
+            
+            no_answer_time = strtoul( val, NULL, 0 );
+            
+            flog( LOG_DEBUG, "no_answer_time: '%d'", no_answer_time );
+        }
         else
         {
             flog( LOG_ERROR, "conf line %d: unrecognized token '%s'", line_num, tok );

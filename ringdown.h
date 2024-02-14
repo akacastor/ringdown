@@ -12,6 +12,8 @@ extern int num_listenaddr;
 
 extern char failmsg_filename[1024];
 
+extern int no_answer_time;  // time (in seconds) after which we will disconnect from destaddr if they haven't sent any data yet
+
 
 struct _listenaddr
 {
