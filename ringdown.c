@@ -22,6 +22,7 @@
 #include <sys/types.h>
 #include <fcntl.h>
 #include <pthread.h>
+#include <sys/time.h>
 
 #include "ringdown.h"
 #include "log.h"
@@ -37,6 +38,10 @@ int num_listenaddr = 0;
 char failmsg_filename[1024] = {0};
 
 int no_answer_time = 0;         // time (in seconds) after which we will disconnect from destaddr if they haven't sent any data yet
+
+unsigned int escape_pre_time = 1000;    // time (in ms) that must be idle before +++ escape sequence
+unsigned int escape_post_time = 1000;    // time (in ms) that must be idle after +++ escape sequence
+char escape_seq_sourceip[1024] = "}}}SOURCEIP?";
 
 
 struct _serve_client_args
@@ -66,7 +71,11 @@ void passthru_connection( int srcfd, struct sockaddr_in srcaddress, int destfd, 
     int tx_pkt_size = 1;        // send at most 1 byte at a time
     time_t ticks;
     int processed_data;         // flag indicating if any data was processed this round through while() loop
-    
+    struct timeval last_data_timeval;
+    struct timeval current_timeval;
+    int escape_sequence;        // 0 = no escape sequence started, 1,2,3 = number of +, 4 = 1 second delay measured after +++ (complete)
+    int i;
+
 
     if( !InitCBuf( &srcrxbuf, rxbuf_len ) )
     {
@@ -79,6 +88,8 @@ void passthru_connection( int srcfd, struct sockaddr_in srcaddress, int destfd, 
         FreeCBuf(&srcrxbuf);
         return;
     }
+    
+    memset( &last_data_timeval, 0, sizeof(struct timeval) );
 
 
     ticks = time(NULL);
@@ -100,6 +111,9 @@ void passthru_connection( int srcfd, struct sockaddr_in srcaddress, int destfd, 
             break;  // disconnected
 
 
+        // get timestamp of current time when checking for data from dest (used for escape sequence)
+        gettimeofday( &current_timeval, NULL );
+
         // check for data from dest
         n = read( destfd, rxcharbuf, rx_pkt_size );
         if( n < 0 && !(errno == EAGAIN || errno == EWOULDBLOCK) )
@@ -109,9 +123,43 @@ void passthru_connection( int srcfd, struct sockaddr_in srcaddress, int destfd, 
             AddDataToCBuf( &destrxbuf, (uint8_t *)rxcharbuf, n );
             serve_client_args->bytes_rx++;
             processed_data++;
+            if( escape_sequence < strlen(escape_seq_sourceip) && 
+                ( escape_sequence > 0 ||
+                 (current_timeval.tv_sec - last_data_timeval.tv_sec) * 1000 + (current_timeval.tv_usec - last_data_timeval.tv_usec) / 1000 > escape_pre_time 
+                )
+              )
+            {   // check for escape character
+                for( i=0; i<n && escape_sequence < strlen(escape_seq_sourceip); i++ )
+                {
+                    if( rxcharbuf[i] != escape_seq_sourceip[escape_sequence] )
+                    {
+                        escape_sequence = 0;
+                        break;
+                    }
+                    
+                    escape_sequence++;
+                    flog( LOG_DEBUG, "escape sequence = %d", escape_sequence );
+                }
+
+                if( i<n )   // if there are more bytes in rx buffer, there was no delay after +++
+                    escape_sequence = 0;
+            }                
+            last_data_timeval.tv_sec = current_timeval.tv_sec;
+            last_data_timeval.tv_usec = current_timeval.tv_usec;
         }
         else if( n == 0 )
             break;  // disconnected
+        else if( escape_sequence == strlen(escape_seq_sourceip) && 
+           (current_timeval.tv_sec - last_data_timeval.tv_sec) * 1000 + (current_timeval.tv_usec - last_data_timeval.tv_usec) / 1000 > escape_post_time )
+        {
+            escape_sequence++;  // delay after +++ was met, we are now in command-mode
+            flog( LOG_INFO, "escape sequence for source IP received from destaddr" );
+            // send IP address of source to dest
+            snprintf( txcharbuf, sizeof(txcharbuf), "{%s}\r\n", inet_ntoa(srcaddress.sin_addr) );
+            AddDataToCBuf( &srcrxbuf, (uint8_t *)txcharbuf, strlen(txcharbuf) );
+            escape_sequence = 0;    // exit command-mode (escape sequence processing finished)
+        }
+
 
         // check for data to send to source
         if( (n = CheckCBuf( &srcrxbuf )) )
@@ -431,6 +479,11 @@ int main(int argc, char *argv[])
                 i++;
                 if( i<argc )
                     optarg = argv[i];
+                else
+                {
+                    printf( "command-line error - aborting.\n" );
+                    return 1;
+                }
                 break;
         }
 

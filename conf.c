@@ -160,6 +160,46 @@ int read_conf_file(const char *filename)
             
             flog( LOG_DEBUG, "no_answer_time: %d", no_answer_time );
         }
+        else if( !strcasecmp( tok, "escape_pre_time" ) )
+        {            
+            val = strtok( NULL, filename_sep );
+            if( !val )
+            {
+                flog( LOG_ERROR, "conf line %d: escape_pre_time requires parameter (time in milliseconds)", line_num );
+                continue;
+            }
+            
+            escape_pre_time = strtoul( val, NULL, 0 );
+            
+            flog( LOG_DEBUG, "escape_pre_time: %d", escape_pre_time );
+        }
+        else if( !strcasecmp( tok, "escape_post_time" ) )
+        {            
+            val = strtok( NULL, filename_sep );
+            if( !val )
+            {
+                flog( LOG_ERROR, "conf line %d: escape_post_time requires parameter (time in milliseconds)", line_num );
+                continue;
+            }
+            
+            escape_post_time = strtoul( val, NULL, 0 );
+            
+            flog( LOG_DEBUG, "escape_post_time: %d", escape_post_time );
+        }
+        else if( !strcasecmp( tok, "escape_seq_sourceip" ) )
+        {            
+            val = strtok( NULL, filename_sep );
+            if( !val )
+            {
+                flog( LOG_ERROR, "conf line %d: escape_seq_sourceip requires parameter (escape string)", line_num );
+                continue;
+            }
+            
+            strncpy( escape_seq_sourceip, val, sizeof(escape_seq_sourceip) );
+            escape_seq_sourceip[sizeof(escape_seq_sourceip)-1] = '\0';
+            
+            flog( LOG_DEBUG, "escape_seq_sourceip: '%s'", escape_seq_sourceip );
+        }
         else
         {
             flog( LOG_ERROR, "conf line %d: unrecognized token '%s'", line_num, tok );

@@ -14,6 +14,10 @@ extern char failmsg_filename[1024];
 
 extern int no_answer_time;  // time (in seconds) after which we will disconnect from destaddr if they haven't sent any data yet
 
+extern unsigned int escape_pre_time;    // time (in ms) that must be idle before +++ escape sequence
+extern unsigned int escape_post_time;    // time (in ms) that must be idle after +++ escape sequence
+extern char escape_seq_sourceip[1024];
+
 
 struct _listenaddr
 {
