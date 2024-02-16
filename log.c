@@ -65,6 +65,7 @@ int flog( int msg_log_level, const char *msg, ... )
     va_list argp;
     int try_count=3;
     time_t ticks; 
+    char log_str[4096] = "";
 
 
     if( !logfile )
@@ -98,7 +99,7 @@ int flog( int msg_log_level, const char *msg, ... )
         
         if( msg )
         {
-            if( vfprintf( logfile, msg, argp ) < 0 )
+            if( vsnprintf( log_str, sizeof(log_str), msg, argp ) < 0 )
             {
                 va_end(argp);
                 return -2;
@@ -108,12 +109,8 @@ int flog( int msg_log_level, const char *msg, ... )
 
         if( !msg || !strlen(msg) || msg[strlen(msg)-1] != '\n' )
         {
-            if( fprintf( logfile, "\n" ) < 0 )
-            {
-                va_end(argp);
-                return -3;
-            }
-            printf( "\n" );
+            fprintf( logfile, "%s\n", log_str );
+            printf( "%s\n", log_str );
         }
         fflush( logfile );
         pthread_mutex_unlock(log_mutex);
