@@ -84,12 +84,10 @@ int flog( int msg_log_level, const char *msg, ... )
 
         do
         {
-            if( fprintf( logfile, "%.24s ", ctime(&ticks) ) > 0 )
+            if( snprintf( log_str, sizeof(log_str), "%.24s ", ctime(&ticks) ) > 0 )
                 break;
             open_log(NULL);     // error occured, try re-opening logfile
         }while(--try_count);
-        
-        printf( "%.24s ", ctime(&ticks) );
         
         if( try_count == 0 )
         {
@@ -99,12 +97,11 @@ int flog( int msg_log_level, const char *msg, ... )
         
         if( msg )
         {
-            if( vsnprintf( log_str, sizeof(log_str), msg, argp ) < 0 )
+            if( vsnprintf( log_str+strlen(log_str), sizeof(log_str)-strlen(log_str), msg, argp ) < 0 )
             {
                 va_end(argp);
                 return -2;
             }
-            vprintf( msg, argp );
         }
 
         if( !msg || !strlen(msg) || msg[strlen(msg)-1] != '\n' )
