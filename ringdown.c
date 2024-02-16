@@ -293,7 +293,7 @@ void passthru_connection( int srcfd, struct sockaddr_in srcaddress, int destfd, 
                             close( destfd );
                             add_to_ban_list( srcaddress.sin_addr );
                             close( srcfd );
-                            flog( LOG_INFO, "Banned IP %s for %d minutes for login attempt '%s'", inet_ntoa(srcaddress.sin_addr), check_banned(srcaddress.sin_addr), str_ptr );
+                            flog( LOG_INFO, "banned IP %s for %d minutes for login attempt '%s'", inet_ntoa(srcaddress.sin_addr), check_banned(srcaddress.sin_addr), str_ptr );
                         }
                     }                                            
                 }
