@@ -18,6 +18,7 @@ int read_conf_file(const char *filename)
     char *tok = NULL;
     char *val = NULL;
     int line_num = 0;
+    char *new_bad_word;
 
     
     if( !filename )
@@ -199,6 +200,97 @@ int read_conf_file(const char *filename)
             escape_seq_sourceip[sizeof(escape_seq_sourceip)-1] = '\0';
             
             flog( LOG_DEBUG, "escape_seq_sourceip: '%s'", escape_seq_sourceip );
+        }
+        else if( !strcasecmp( tok, "bannedmsg" ) )
+        {            
+            val = strtok( NULL, filename_sep );
+            if( !val )
+            {
+                flog( LOG_ERROR, "conf line %d: bannedmsg requires parameter (filename)", line_num );
+                continue;
+            }
+            
+            strncpy( bannedmsg_filename, val, sizeof(bannedmsg_filename) );
+            bannedmsg_filename[sizeof(bannedmsg_filename)-1] = '\0';
+            
+            flog( LOG_DEBUG, "bannedmsg filename: '%s'", bannedmsg_filename );
+        }
+        else if( !strcasecmp( tok, "ban_time" ) )
+        {            
+            val = strtok( NULL, filename_sep );
+            if( !val )
+            {
+                flog( LOG_ERROR, "conf line %d: ban_time requires parameter (time in minutes)", line_num );
+                continue;
+            }
+            
+            ban_time = strtoul( val, NULL, 0 );
+            
+            flog( LOG_DEBUG, "ban_time: %d", ban_time );
+        }
+        else if( !strcasecmp( tok, "ban_multiplier" ) )
+        {            
+            val = strtok( NULL, filename_sep );
+            if( !val )
+            {
+                flog( LOG_ERROR, "conf line %d: ban_multiplier requires parameter (time in minutes)", line_num );
+                continue;
+            }
+            
+            ban_multiplier = strtoul( val, NULL, 0 );
+            
+            flog( LOG_DEBUG, "ban_multiplier: %d", ban_multiplier );
+        }
+        else if( !strcasecmp( tok, "max_ban_time" ) )
+        {            
+            val = strtok( NULL, filename_sep );
+            if( !val )
+            {
+                flog( LOG_ERROR, "conf line %d: max_ban_time requires parameter (time in minutes)", line_num );
+                continue;
+            }
+            
+            max_ban_time = strtoul( val, NULL, 0 );
+            
+            flog( LOG_DEBUG, "max_ban_time: %d", max_ban_time );
+        }
+        else if( !strcasecmp( tok, "bot_detect_time" ) )
+        {            
+            val = strtok( NULL, filename_sep );
+            if( !val )
+            {
+                flog( LOG_ERROR, "conf line %d: bot_detect_time requires parameter (time in minutes)", line_num );
+                continue;
+            }
+            
+            bot_detect_time = strtoul( val, NULL, 0 );
+            
+            flog( LOG_DEBUG, "bot_detect_time: %d", bot_detect_time );
+        }
+        else if( !strcasecmp( tok, "bad_word" ) )
+        {            
+            val = strtok( NULL, filename_sep );
+            if( !val )
+            {
+                flog( LOG_ERROR, "conf line %d: bad_word requires parameter (word)", line_num );
+                continue;
+            }
+            
+            
+            num_bad_words++;
+            bad_words = (char **)realloc( bad_words, num_bad_words * sizeof(char *));
+            
+            new_bad_word = (char *)calloc( strlen(val), sizeof(char) );
+            if( !new_bad_word )
+            {
+                flog( LOG_ERROR, "error allocating memory for new_bad_word!" );
+                continue;
+            }
+            
+            strcpy( new_bad_word, val );
+            bad_words[num_bad_words-1] = new_bad_word;
+            
+            flog( LOG_DEBUG, "bad_word: '%s'", val );
         }
         else
         {

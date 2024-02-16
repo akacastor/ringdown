@@ -88,6 +88,8 @@ int flog( int msg_log_level, const char *msg, ... )
             open_log(NULL);     // error occured, try re-opening logfile
         }while(--try_count);
         
+        printf( "%.24s ", ctime(&ticks) );
+        
         if( try_count == 0 )
         {
             va_end(argp);
@@ -101,6 +103,7 @@ int flog( int msg_log_level, const char *msg, ... )
                 va_end(argp);
                 return -2;
             }
+            vprintf( msg, argp );
         }
 
         if( !msg || !strlen(msg) || msg[strlen(msg)-1] != '\n' )
@@ -110,6 +113,7 @@ int flog( int msg_log_level, const char *msg, ... )
                 va_end(argp);
                 return -3;
             }
+            printf( "\n" );
         }
         fflush( logfile );
         pthread_mutex_unlock(log_mutex);

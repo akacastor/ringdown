@@ -43,6 +43,16 @@ unsigned int escape_pre_time = 1000;    // time (in ms) that must be idle before
 unsigned int escape_post_time = 1000;    // time (in ms) that must be idle after +++ escape sequence
 char escape_seq_sourceip[1024] = "}}}SOURCEIP?";
 
+struct _ip_ban *ban_list = NULL;
+int num_ban_list = 0;
+int ban_time = 0;                       // ban time in minutes (for first attempt, will be multiplied by ban_multiplier on subsequent bans)
+int ban_multiplier = 0;                 // factor by which to increase ban time with each attempt
+int max_ban_time = 0;                   // maximum length of a ban in minutes
+char bannedmsg_filename[1024] = "";
+int bot_detect_time = 0;                // how long to watch for suspicious login attempts, in seconds
+char **bad_words = NULL;
+int num_bad_words=0;
+
 
 struct _serve_client_args
 {
@@ -55,6 +65,140 @@ struct _serve_client_args
     unsigned long bytes_tx;
 };
 
+
+// returns # of minutes remaining in ban, or 0 if not banned
+int check_banned( struct in_addr banaddr )
+{
+    int i;
+    time_t ticks;
+    
+    
+    for( i=0; i<num_ban_list; i++ )
+    {
+        if( banaddr.s_addr == ban_list[i].addr.s_addr )
+            break;
+    }
+    
+    if( i < num_ban_list )
+    {
+        ticks = time(NULL);
+        if( ban_list[i].expire_time > ticks )
+            return (ban_list[i].expire_time - ticks) / 60;
+    }
+
+    
+    return 0;
+}
+
+
+// returns index into ban_list[] where banaddr is found, or -1 if not found
+int check_ban_list( struct in_addr banaddr )
+{
+    int i;
+    
+    
+    for( i=0; i<num_ban_list; i++ )
+    {
+        if( banaddr.s_addr == ban_list[i].addr.s_addr )
+            break;
+    }
+    
+    if( i < num_ban_list )
+        return i;
+    
+    
+    return -1;
+}
+
+
+int add_to_ban_list( struct in_addr banaddr )
+{
+    int idx;
+    int expire_time;
+
+
+    idx = check_ban_list(banaddr);
+    if( idx == -1 )
+    {   // not in list, we must add it
+        num_ban_list++;
+        ban_list = (struct _ip_ban *)realloc( ban_list, num_ban_list * sizeof(struct _ip_ban) );
+        if( !ban_list )
+        {
+            flog( LOG_ERROR, "error allocating %d bytes for ban_list!", num_ban_list * sizeof(struct _ip_ban) );
+            num_ban_list = 0;
+            return 0;
+        }
+        idx = num_ban_list - 1;
+        memset( &ban_list[idx], 0, sizeof(struct _ip_ban) );
+        ban_list[idx].addr = banaddr;
+    }    
+
+    ban_list[idx].count++;
+
+    // calculate when ban should expire    
+    expire_time = ban_time*60 * (ban_list[idx].count - 1) * ban_multiplier;
+    if( !expire_time )
+        expire_time = ban_time*60;
+
+
+    if( max_ban_time && expire_time > max_ban_time )
+        expire_time = max_ban_time;
+        
+    expire_time += time(NULL);
+
+    if( expire_time > ban_list[idx].expire_time )
+        ban_list[idx].expire_time = expire_time;
+    
+    
+    return 0;
+}
+
+
+void print_banned_msg( int srcfd, struct sockaddr_in srcaddress, int time_left )
+{
+    FILE *bannedmsg_file = NULL;
+    int readbyte;
+    char text[1024];
+    
+    
+    if( strlen(bannedmsg_filename) && (bannedmsg_file = fopen( bannedmsg_filename, "rt" )) )
+    {
+        while( !feof(bannedmsg_file) && !ferror(bannedmsg_file) )
+        {
+            if( readbyte < 0 )
+            {
+                readbyte = fgetc(bannedmsg_file);
+                if( feof(bannedmsg_file) || ferror(bannedmsg_file) )
+                    break;
+            }
+            
+            if( readbyte == '`' )
+            {   // replace backtick ` with the # of minutes until ban is lifted
+                snprintf( text, sizeof(text), "%d", 1+time_left );
+                
+                if( write( srcfd, text, strlen(text) ) < 1 )
+                {
+                    if( errno == EAGAIN || errno == EWOULDBLOCK )
+                        continue;
+                    else
+                        break;  // disconnected
+                }
+            }            
+            else if( write( srcfd, &readbyte, 1 ) < 0 )
+            {
+                if( errno == EAGAIN || errno == EWOULDBLOCK )
+                    continue;
+                else
+                    break;  // disconnected
+            }
+
+            readbyte = -1;  // set readbyte to -1 so next byte will be read from file
+        }
+        
+        fclose(bannedmsg_file);
+        sleep(2);        // sleep so bannedmsg is sent before socket is closed
+    }
+}
 
 
 void passthru_connection( int srcfd, struct sockaddr_in srcaddress, int destfd, struct in_addr destaddress, unsigned int destport, struct _serve_client_args *serve_client_args )
@@ -69,12 +213,16 @@ void passthru_connection( int srcfd, struct sockaddr_in srcaddress, int destfd, 
     char txcharbuf[txbuf_len];
     int rx_pkt_size = 1;        // receive at most 1 byte at a time
     int tx_pkt_size = 1;        // send at most 1 byte at a time
-    time_t ticks;
     int processed_data;         // flag indicating if any data was processed this round through while() loop
     struct timeval last_data_timeval;
     struct timeval current_timeval;
     int escape_sequence;        // 0 = no escape sequence started, 1,2,3 = number of +, 4 = 1 second delay measured after +++ (complete)
     int i;
+    char client_text[1024];     // data sent by client when first connected - used for detecting bots to apply bans
+    int client_text_len = 0;
+    time_t connect_start_time;
+    int do_bot_detect = 1;
+    char *str_ptr;
 
 
     if( !InitCBuf( &srcrxbuf, rxbuf_len ) )
@@ -92,7 +240,7 @@ void passthru_connection( int srcfd, struct sockaddr_in srcaddress, int destfd, 
     memset( &last_data_timeval, 0, sizeof(struct timeval) );
 
 
-    ticks = time(NULL);
+    connect_start_time = time(NULL);
     while( connected )
     {
         processed_data = 0;
@@ -106,6 +254,52 @@ void passthru_connection( int srcfd, struct sockaddr_in srcaddress, int destfd, 
             AddDataToCBuf( &srcrxbuf, (uint8_t *)rxcharbuf, n );
             serve_client_args->bytes_tx++;
             processed_data++;
+
+            if( do_bot_detect && time(NULL) - connect_start_time < bot_detect_time )
+            {   // if we are still within bot_detect_time, keep a record of what is sent by client in client_text[]
+                memcpy( client_text+client_text_len, rxcharbuf, client_text_len + n < sizeof(client_text) ? n : sizeof(client_text)-client_text_len );
+                client_text_len += n;
+                if( client_text_len > sizeof(client_text) )
+                    client_text_len = sizeof(client_text);
+
+                if( memchr( client_text, 0x1B, client_text_len ) )
+                {   // Esc was received - users press this to enter BBS, disable bot detection after this point
+                    do_bot_detect = 0;
+                }
+                else if( (str_ptr = memchr( client_text, '\r', client_text_len )) )
+                {   // carriage return was received, was it a bot login attempt?
+                    *str_ptr = '\0';    // replace carriage return with NULL
+                    while( str_ptr > client_text )
+                    {   // search for 
+                        str_ptr--;
+                        if( str_ptr[0] <= 0x20 || str_ptr[0] >= 0x7F )
+                            break;
+                    }
+
+                    if( str_ptr[0] <= 0x20 || str_ptr[0] >= 0x7F )
+                        str_ptr++;  // skip the non-printable character
+
+                    if( strlen(str_ptr) == 0 )
+                        client_text_len = 0;        // we received a CR with nothing else, throw it away and keep watching
+                    else
+                    {
+                        for( i=0; i<num_bad_words; i++ )
+                        {
+                            if( !strcasecmp( str_ptr, bad_words[i] ) )
+                                break;
+                        }
+                        if( i<num_bad_words )
+                        {   // found a match - ban this IP
+                            close( destfd );
+                            add_to_ban_list( srcaddress.sin_addr );
+                            close( srcfd );
+                            flog( LOG_INFO, "Banned IP %s for %d minutes for login attempt '%s'", inet_ntoa(srcaddress.sin_addr), check_banned(srcaddress.sin_addr), str_ptr );
+                        }
+                    }                                            
+                }
+            }
+            else
+                do_bot_detect = 0;
         }
         else if( n == 0 )
             break;  // disconnected
@@ -201,7 +395,7 @@ void passthru_connection( int srcfd, struct sockaddr_in srcaddress, int destfd, 
             processed_data++;
         }
 
-        if( (no_answer_time > 0) && (serve_client_args->bytes_rx == 0) && (time(NULL) - ticks > no_answer_time) )
+        if( (no_answer_time > 0) && (serve_client_args->bytes_rx == 0) && (time(NULL) - connect_start_time > no_answer_time) )
             break;  // disconnect from this destaddr and attempt next destaddr    
 
         if( !processed_data )
@@ -230,13 +424,6 @@ void *serve_client(void *_args)
     int readbyte;
     int was_connected = 0;
     
-
-    // set srcfd to non-blocking
-    if( fcntl(args->srcfd, F_SETFL, fcntl(args->srcfd, F_GETFL, 0) | O_NONBLOCK) == -1 )
-    {
-        flog( LOG_ERROR, "error setting srcfd to non-blocking" );
-        // handle the error.  By the way, I've never seen fcntl fail in this way
-    }
 
     addr_text = inet_ntoa(args->address.sin_addr);
     if( !addr_text )
@@ -330,8 +517,8 @@ void *serve_client(void *_args)
             readbyte = -1;  // set readbyte to -1 so next byte will be read from file
         }
         
-        sleep(2);        // sleep so failmsg is sent before socket is closed
         fclose(failmsg_file);
+        sleep(2);        // sleep so failmsg is sent before socket is closed
     }
 
 
@@ -356,6 +543,7 @@ void *listen_port(void *_listen_idx)
     int max_bind_attempts = 60;
     struct _serve_client_args *serve_client_args;
 	pthread_t thread_id;
+	int ban_time_remaining;
 
     
     listenfd = socket(AF_INET, SOCK_STREAM, 0);
@@ -384,7 +572,7 @@ void *listen_port(void *_listen_idx)
         if( bind_attempts == 1 )
         {
             flog( LOG_ERROR, "unable to bind socket. errno=%d. retrying up to %d seconds...", errno, max_bind_attempts );
-            printf( "unable to bind socket. errno=%d. retrying up to %d seconds...\n", errno, max_bind_attempts );
+//            printf( "unable to bind socket. errno=%d. retrying up to %d seconds...\n", errno, max_bind_attempts );
         }
         else
             flog( LOG_DEBUG, "unable to bind socket. errno=%d. retrying up to %d seconds...", errno, max_bind_attempts-bind_attempts+1 );
@@ -408,7 +596,7 @@ void *listen_port(void *_listen_idx)
 
 
     flog( LOG_ERROR, "ringdown listenaddr[%d] on %s:%d", *listen_idx, listenaddr[*listen_idx].addr.s_addr ? inet_ntoa(listenaddr[*listen_idx].addr) : "*", listenaddr[*listen_idx].port );
-    printf( "ringdown listenaddr[%d] on %s:%d\n", *listen_idx, listenaddr[*listen_idx].addr.s_addr ? inet_ntoa(listenaddr[*listen_idx].addr) : "*", listenaddr[*listen_idx].port );
+//    printf( "ringdown listenaddr[%d] on %s:%d\n", *listen_idx, listenaddr[*listen_idx].addr.s_addr ? inet_ntoa(listenaddr[*listen_idx].addr) : "*", listenaddr[*listen_idx].port );
 
 
     // set listenfd to non-blocking
@@ -423,6 +611,18 @@ void *listen_port(void *_listen_idx)
         {
             // error value in errno
             usleep(10000);
+            continue;
+        }
+        
+        // set srcfd to non-blocking
+        if( fcntl(connfd, F_SETFL, fcntl(connfd, F_GETFL, 0) | O_NONBLOCK) == -1 )
+            flog( LOG_ERROR, "error setting srcfd to non-blocking" );
+
+        if( (ban_time_remaining = check_banned( address.sin_addr )) )
+        {
+            flog( LOG_INFO, "banned IP attempted to connect: %s (%d minutes left in ban)", inet_ntoa(address.sin_addr), ban_time_remaining+1 );
+            print_banned_msg( connfd, address, ban_time_remaining );
+            close(connfd);
             continue;
         }
 
