@@ -318,7 +318,7 @@ void passthru_connection( int srcfd, struct sockaddr_in srcaddress, int destfd, 
                         }
                         else
                         {   // a word was entered, followed by CR, that isn't in bad_words[] list
-                            flog( LOG_DEBUG, "login attempt from %s? \"%s\"", inet_ntoa(srcaddress.sin_addr), str_ptr );
+                            flog( LOG_DEBUG, "login attempt from %s? '%s'", inet_ntoa(srcaddress.sin_addr), str_ptr );
                         }
                     }
                 }
