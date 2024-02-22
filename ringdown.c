@@ -788,10 +788,25 @@ int main(int argc, char *argv[])
         sleep(1);
     }
     
-    flog(LOG_INFO, "%s exiting.", SOFTWARE_NAME);
+    flog(LOG_DEBUG, "terminating threads");
+
+//NOTE - we don't have a list of threads of currently active connections
+
+    // terminate threads    
+    for( i=0; listen_idxs && listen_thread_ids && i<num_listenaddr; i++ )
+        pthread_cancel( listen_thread_ids[i] );
+
+    // wait for threads to terminate
+    for( i=0; listen_idxs && listen_thread_ids && i<num_listenaddr; i++ )
+        pthread_join( listen_thread_ids[i], NULL );
     
+    flog(LOG_INFO, "%s exiting.", SOFTWARE_NAME);
+
     close_log();
     
     if( listen_idxs )
         free(listen_idxs);
+
+
+    return 0;
 }
