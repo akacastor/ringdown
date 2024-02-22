@@ -54,6 +54,9 @@ char **bad_words = NULL;
 int num_bad_words=0;
 
 
+pthread_mutex_t *ban_list_mutex = NULL;
+
+
 struct _serve_client_args
 {
     int srcfd;
@@ -71,8 +74,11 @@ int check_banned( struct in_addr banaddr )
 {
     int i;
     time_t ticks;
+    int ban_time_remaining = 0;
     
     
+    pthread_mutex_lock(ban_list_mutex);
+
     for( i=0; i<num_ban_list; i++ )
     {
         if( banaddr.s_addr == ban_list[i].addr.s_addr )
@@ -83,11 +89,13 @@ int check_banned( struct in_addr banaddr )
     {
         ticks = time(NULL);
         if( ban_list[i].expire_time > ticks )
-            return (ban_list[i].expire_time - ticks) / 60;
+            ban_time_remaining = (ban_list[i].expire_time - ticks) / 60;
     }
 
+    pthread_mutex_unlock(ban_list_mutex);
+
     
-    return 0;
+    return ban_time_remaining;
 }
 
 
@@ -97,17 +105,21 @@ int check_ban_list( struct in_addr banaddr )
     int i;
     
     
+    pthread_mutex_lock(ban_list_mutex);
+
     for( i=0; i<num_ban_list; i++ )
     {
         if( banaddr.s_addr == ban_list[i].addr.s_addr )
             break;
     }
     
-    if( i < num_ban_list )
-        return i;
+    if( i >= num_ban_list )
+        i = -1;
     
+    pthread_mutex_unlock(ban_list_mutex);
+
     
-    return -1;
+    return i;
 }
 
 
@@ -118,6 +130,7 @@ int add_to_ban_list( struct in_addr banaddr )
 
 
     idx = check_ban_list(banaddr);
+    pthread_mutex_lock(ban_list_mutex);
     if( idx == -1 )
     {   // not in list, we must add it
         num_ban_list++;
@@ -126,6 +139,7 @@ int add_to_ban_list( struct in_addr banaddr )
         {
             flog( LOG_ERROR, "error allocating %d bytes for ban_list!", num_ban_list * sizeof(struct _ip_ban) );
             num_ban_list = 0;
+            pthread_mutex_unlock(ban_list_mutex);
             return 0;
         }
         idx = num_ban_list - 1;
@@ -140,7 +154,6 @@ int add_to_ban_list( struct in_addr banaddr )
     if( !expire_time )
         expire_time = ban_time*60;
 
-
     if( max_ban_time && expire_time > max_ban_time )
         expire_time = max_ban_time;
         
@@ -149,7 +162,9 @@ int add_to_ban_list( struct in_addr banaddr )
     if( expire_time > ban_list[idx].expire_time )
         ban_list[idx].expire_time = expire_time;
     
-    
+    pthread_mutex_unlock(ban_list_mutex);
+
+
     return 0;
 }
 
@@ -423,15 +438,14 @@ void *serve_client(void *_args)
     FILE *failmsg_file;
     int readbyte;
     int was_connected = 0;
+    time_t connection_start_time;
     
 
     addr_text = inet_ntoa(args->address.sin_addr);
-    if( !addr_text )
-    {
-        // error getting IP address
-    }
-    else
+    if( addr_text )
         flog( LOG_INFO, "connection from %s", addr_text );
+    else
+        flog( LOG_ERROR, "inet_ntoa() failed to return addr_text" );
 
 
     // calculate destaddr_ofs, this is where in the list of destaddr[] to start attempting connections
@@ -445,7 +459,6 @@ void *serve_client(void *_args)
         }
 
         memset(&serv_addr, 0, sizeof(serv_addr)); 
-
         serv_addr.sin_family = AF_INET;
         serv_addr.sin_addr = listenaddr[args->listen_idx].destaddr[(i + destaddr_ofs) % listenaddr[args->listen_idx].num_destaddr].addr;
         serv_addr.sin_port = htons(listenaddr[args->listen_idx].destaddr[(i + destaddr_ofs) % listenaddr[args->listen_idx].num_destaddr].port);
@@ -457,7 +470,7 @@ void *serve_client(void *_args)
         if( connect(destfd, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0)
         {
             flog( LOG_DEBUG, "failed to connect to %s:%d", addr_text, ntohs(serv_addr.sin_port) );
-            continue;
+            continue;   // try next entry in destaddr[]
         }
 
         // update the last destaddr[] that was connected to, so next attempt starts at +1 to cycle through them all
@@ -476,13 +489,14 @@ void *serve_client(void *_args)
             flog( LOG_INFO, "connected %s to %s:%d", log_text, inet_ntoa(serv_addr.sin_addr), ntohs(serv_addr.sin_port) );
         }
 
+        connection_start_time = time(NULL);
         passthru_connection( args->srcfd, args->address, destfd, serv_addr.sin_addr, ntohs(serv_addr.sin_port), args );
 
         snprintf( log_text, sizeof(log_text), "%s:%d", inet_ntoa(serv_addr.sin_addr), ntohs(serv_addr.sin_port) );
-        flog( LOG_INFO, "disconnected %s from %s", inet_ntoa(args->address.sin_addr), log_text ); // printing wrong address/port!
+        flog( LOG_INFO, "disconnected %s from %s (%d seconds)", inet_ntoa(args->address.sin_addr), log_text, time(NULL)-connection_start_time );
 
         if( args->bytes_rx < 1 )
-        {
+        {   // if there was no traffic then consider the connection unsuccessful and continue to attempt connection to next destaddr[]
             close(destfd);
             continue;
         }
@@ -496,7 +510,7 @@ void *serve_client(void *_args)
     // no connection possible
 
     if( (!was_connected) && strlen(failmsg_filename) && (failmsg_file = fopen( failmsg_filename, "rt" )) )
-    {
+    {   // print failmsg to client to let them know we were unable to complete their connection
         while( !feof(failmsg_file) && !ferror(failmsg_file) )
         {
             if( readbyte < 0 )
@@ -595,8 +609,7 @@ void *listen_port(void *_listen_idx)
     }
 
 
-    flog( LOG_ERROR, "ringdown listenaddr[%d] on %s:%d", *listen_idx, listenaddr[*listen_idx].addr.s_addr ? inet_ntoa(listenaddr[*listen_idx].addr) : "*", listenaddr[*listen_idx].port );
-//    printf( "ringdown listenaddr[%d] on %s:%d\n", *listen_idx, listenaddr[*listen_idx].addr.s_addr ? inet_ntoa(listenaddr[*listen_idx].addr) : "*", listenaddr[*listen_idx].port );
+    flog( LOG_INFO, "ringdown listenaddr[%d] on %s:%d", *listen_idx, listenaddr[*listen_idx].addr.s_addr ? inet_ntoa(listenaddr[*listen_idx].addr) : "*", listenaddr[*listen_idx].port );
 
 
     // set listenfd to non-blocking
@@ -639,8 +652,8 @@ void *listen_port(void *_listen_idx)
         serve_client_args->listen_idx = *listen_idx;
         if( pthread_create( &thread_id, NULL , serve_client, (void*) serve_client_args) < 0)
         {
-            perror("could not create thread");
-            break;
+            flog( LOG_ERROR, "error creating thread serve_client" );
+            continue;
         }
     }
 
@@ -719,6 +732,17 @@ int main(int argc, char *argv[])
     open_log( log_filename );
 
     read_conf_file(conf_filename);
+    
+    ban_list_mutex = (pthread_mutex_t *)calloc(1,sizeof(pthread_mutex_t));
+    if( !ban_list_mutex )
+    {
+        flog( LOG_ERROR, "unable to allocate memory for ban_list_mutex!\n" );
+        close_log();
+        return -1;
+    }
+    pthread_mutex_init(ban_list_mutex, NULL);
+
+
     if( num_listenaddr > 0 )
     {
         listen_idxs = (int *)calloc(num_listenaddr, sizeof(int));
@@ -739,6 +763,8 @@ int main(int argc, char *argv[])
             return 1;
         }
     }
+
+    // listen_thread_ids[0..num_listenaddr] contain id for each listen_port thread running
 
     while(1)
     {
