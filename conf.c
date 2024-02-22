@@ -292,6 +292,19 @@ int read_conf_file(const char *filename)
             
             flog( LOG_DEBUG, "bad_word: '%s'", val );
         }
+        else if( !strcasecmp( tok, "bot_sleep_time" ) )
+        {            
+            val = strtok( NULL, filename_sep );
+            if( !val )
+            {
+                flog( LOG_ERROR, "conf line %d: bot_sleep_time requires parameter (time in seconds)", line_num );
+                continue;
+            }
+            
+            bot_sleep_time = strtoul( val, NULL, 0 );
+            
+            flog( LOG_DEBUG, "bot_sleep_time: %d", bot_sleep_time );
+        }
         else
         {
             flog( LOG_ERROR, "conf line %d: unrecognized token '%s'", line_num, tok );

@@ -52,7 +52,8 @@ int max_ban_time = 0;                   // maximum length of a ban in minutes
 char bannedmsg_filename[1024] = "";
 int bot_detect_time = 0;                // how long to watch for suspicious login attempts, in seconds
 char **bad_words = NULL;
-int num_bad_words=0;
+int num_bad_words = 0;
+int bot_sleep_time = 30;                // sleep() for 30 seconds before disconnecting bot (slow them down where we can)
 
 
 pthread_mutex_t *ban_list_mutex = NULL;
@@ -288,7 +289,7 @@ void passthru_connection( int srcfd, struct sockaddr_in srcaddress, int destfd, 
                 {   // carriage return was received, was it a bot login attempt?
                     *str_ptr = '\0';    // replace carriage return with NULL
                     while( str_ptr > client_text )
-                    {   // search for 
+                    {   // search for any non-printable characters received (such as telnet IAC responses)
                         str_ptr--;
                         if( str_ptr[0] <= 0x20 || str_ptr[0] >= 0x7F )
                             break;
@@ -300,7 +301,7 @@ void passthru_connection( int srcfd, struct sockaddr_in srcaddress, int destfd, 
                     if( strlen(str_ptr) == 0 )
                         client_text_len = 0;        // we received a CR with nothing else, throw it away and keep watching
                     else
-                    {
+                    {   // check bad_words[] list to see if this is a known brute-force attempt
                         for( i=0; i<num_bad_words; i++ )
                         {
                             if( !strcasecmp( str_ptr, bad_words[i] ) )
@@ -310,10 +311,15 @@ void passthru_connection( int srcfd, struct sockaddr_in srcaddress, int destfd, 
                         {   // found a match - ban this IP
                             close( destfd );
                             add_to_ban_list( srcaddress.sin_addr );
+                            sleep( bot_sleep_time );
                             close( srcfd );
                             flog( LOG_INFO, "banned IP %s for %d minutes for login attempt '%s'", inet_ntoa(srcaddress.sin_addr), check_banned(srcaddress.sin_addr), str_ptr );
                         }
-                    }                                            
+                        else
+                        {   // a word was entered, followed by CR, that isn't in bad_words[] list
+                            
+                        }
+                    }
                 }
             }
             else

@@ -34,6 +34,7 @@ extern char bannedmsg_filename[1024];
 extern int bot_detect_time;                // how long to watch for suspicious login attempts, in seconds
 extern char **bad_words;
 extern int num_bad_words;
+extern int bot_sleep_time;                 // seconds to sleep() for before disconnecting bot (slow them down where we can)
 
 
 struct _listenaddr
