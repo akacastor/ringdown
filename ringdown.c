@@ -311,13 +311,14 @@ void passthru_connection( int srcfd, struct sockaddr_in srcaddress, int destfd, 
                         {   // found a match - ban this IP
                             close( destfd );
                             add_to_ban_list( srcaddress.sin_addr );
+                            flog( LOG_INFO, "banned IP %s for %d minutes for login attempt '%s'", inet_ntoa(srcaddress.sin_addr), check_banned(srcaddress.sin_addr), str_ptr );
                             sleep( bot_sleep_time );
                             close( srcfd );
-                            flog( LOG_INFO, "banned IP %s for %d minutes for login attempt '%s'", inet_ntoa(srcaddress.sin_addr), check_banned(srcaddress.sin_addr), str_ptr );
+                            break;
                         }
                         else
                         {   // a word was entered, followed by CR, that isn't in bad_words[] list
-                            
+                            flog( LOG_DEBUG, "login attempt from %s? \"%s\"", inet_ntoa(srcaddress.sin_addr), str_ptr );
                         }
                     }
                 }
@@ -359,7 +360,7 @@ void passthru_connection( int srcfd, struct sockaddr_in srcaddress, int destfd, 
                     flog( LOG_DEBUG, "escape sequence = %d", escape_sequence );
                 }
 
-                if( i<n )   // if there are more bytes in rx buffer, there was no delay after +++
+                if( i<n )   // if there are more bytes in rx buffer, there was no delay after escape sequence
                     escape_sequence = 0;
             }                
             last_data_timeval.tv_sec = current_timeval.tv_sec;
@@ -370,7 +371,7 @@ void passthru_connection( int srcfd, struct sockaddr_in srcaddress, int destfd, 
         else if( escape_sequence == strlen(escape_seq_sourceip) && 
            (current_timeval.tv_sec - last_data_timeval.tv_sec) * 1000 + (current_timeval.tv_usec - last_data_timeval.tv_usec) / 1000 > escape_post_time )
         {
-            escape_sequence++;  // delay after +++ was met, we are now in command-mode
+            escape_sequence++;  // delay after escape sequence was met, we are now in command-mode
             flog( LOG_INFO, "escape sequence for source IP received from destaddr" );
             // send IP address of source to dest
             snprintf( txcharbuf, sizeof(txcharbuf), "{%s}\r\n", inet_ntoa(srcaddress.sin_addr) );
