@@ -695,7 +695,7 @@ int main(int argc, char *argv[])
                         "-h\t\t\tdisplay this help screen\n"
                         "-c <conf_filename>\tconfiguration file\n"
                         "-l <log_filename>\tlog file\n"
-                        "-v <n>\t\t\tset log verbosity (1=DEBUG,2=INFO,3=WARN,4=ERROR,5=FATAL)\n"
+                        "-v <n>\t\t\tset log verbosity (5=DEBUG,4=INFO,3=WARN,2=ERROR,1=FATAL)\n"
                         "\n" );
 		        return 1;
 
