@@ -50,3 +50,11 @@ bot detection happens here also
 
 
 
+Bot detection:
+--------------
+
+Pressing Escape disables bot detection - when client presses escape to enter BBS this is considered a sign that they are not a bot.
+
+During first 'bot_detect_time' seconds of connection, any data sent from the client is monitored for keywords indicating brute force attempt.
+
+Typical bot behaviour: send "root\r" followed by a default password attempt.

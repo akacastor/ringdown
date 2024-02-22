@@ -23,6 +23,7 @@
 #include <fcntl.h>
 #include <pthread.h>
 #include <sys/time.h>
+#include <signal.h>
 
 #include "ringdown.h"
 #include "log.h"
@@ -240,6 +241,7 @@ void passthru_connection( int srcfd, struct sockaddr_in srcaddress, int destfd, 
     char *str_ptr;
 
 
+    // initialize circular buffers to hold data being passed between src (client) and dest
     if( !InitCBuf( &srcrxbuf, rxbuf_len ) )
     {
         flog( LOG_ERROR, "unable to allocate srcrxbuf" );
@@ -270,6 +272,7 @@ void passthru_connection( int srcfd, struct sockaddr_in srcaddress, int destfd, 
             serve_client_args->bytes_tx++;
             processed_data++;
 
+            // bot detection - parse data received from client to look for brute-force login attempts like "root"
             if( do_bot_detect && time(NULL) - connect_start_time < bot_detect_time )
             {   // if we are still within bot_detect_time, keep a record of what is sent by client in client_text[]
                 memcpy( client_text+client_text_len, rxcharbuf, client_text_len + n < sizeof(client_text) ? n : sizeof(client_text)-client_text_len );
@@ -665,6 +668,16 @@ cleanup:
 }
 
 
+volatile int sigint_received = 0;
+
+void INThandler(int sig)
+{
+    signal( sig, SIG_IGN );
+    
+    sigint_received = 1;    
+}
+
+
 int main(int argc, char *argv[])
 {
     int opt;                            // for command-line parsing
@@ -731,6 +744,8 @@ int main(int argc, char *argv[])
 
     open_log( log_filename );
 
+    flog(LOG_INFO, "%s %s starting.", SOFTWARE_NAME, SOFTWARE_VERSION);
+
     read_conf_file(conf_filename);
     
     ban_list_mutex = (pthread_mutex_t *)calloc(1,sizeof(pthread_mutex_t));
@@ -741,7 +756,6 @@ int main(int argc, char *argv[])
         return -1;
     }
     pthread_mutex_init(ban_list_mutex, NULL);
-
 
     if( num_listenaddr > 0 )
     {
@@ -765,13 +779,16 @@ int main(int argc, char *argv[])
     }
 
     // listen_thread_ids[0..num_listenaddr] contain id for each listen_port thread running
-
+    signal( SIGINT, INThandler );
     while(1)
     {
+        if( sigint_received )
+            break;
+
         sleep(1);
     }
     
-    flog(LOG_INFO, "ringdown exiting.");
+    flog(LOG_INFO, "%s exiting.", SOFTWARE_NAME);
     
     close_log();
     

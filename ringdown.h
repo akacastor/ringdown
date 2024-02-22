@@ -4,6 +4,10 @@
 #include <stdint.h>
 
 
+#define SOFTWARE_NAME       "ringdown"
+#define SOFTWARE_VERSION    "0.50"
+
+
 extern int default_connecttime;
 
 
