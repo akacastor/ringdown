@@ -334,11 +334,11 @@ void passthru_connection( int srcfd, struct sockaddr_in srcaddress, int destfd, 
         {
             text_buf[0] = '\0';
             n = 0;
-            for( i=0; i<client_text_len; i++ )
+            for( i=0; i<client_text_len && n+1<sizeof(text_buf); i++ )
             {
                 if( client_text[i] >= 0x20 && client_text[i] < 0x7F )
                 {
-                    if( n >= sizeof(text_buf) )
+                    if( n+1 >= sizeof(text_buf) )
                         break;
                     text_buf[n++] = client_text[i];
                     text_buf[n] = '\0';
