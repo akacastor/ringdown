@@ -703,6 +703,32 @@ void INThandler(int sig)
 }
 
 
+void save_ban_list(char *ban_list_filename)
+{
+    int i;
+    FILE *ban_list_file;
+    
+    
+    if( !ban_list_filename )
+        return;
+
+    ban_list_file = fopen(ban_list_filename, "wt");
+    if( !ban_list_file )
+    {
+        flog( LOG_ERROR, "unable to open ban_list file: %s", ban_list_filename );
+        return;
+    }
+    
+    for( i=0; i<num_ban_list; i++ )
+        fprintf( ban_list_file, "%s %lu %d\n", inet_ntoa(ban_list[i].addr), ban_list[i].expire_time, ban_list[i].count );
+
+    fclose( ban_list_file );
+
+    
+    return;
+}
+
+
 int main(int argc, char *argv[])
 {
     int opt;                            // for command-line parsing
@@ -712,6 +738,7 @@ int main(int argc, char *argv[])
     int *listen_idxs=NULL;
     char log_filename[1024] = "ringdown.log";
     char conf_filename[1024] = "ringdown.conf";
+    char ban_list_filename[1024] = "ringdown.ban";
 
 
     // parse command-line arguments (argv)                                                
@@ -824,6 +851,8 @@ int main(int argc, char *argv[])
     // wait for threads to terminate
     for( i=0; listen_idxs && listen_thread_ids && i<num_listenaddr; i++ )
         pthread_join( listen_thread_ids[i], NULL );
+
+    save_ban_list(ban_list_filename);
     
     flog(LOG_INFO, "%s exiting.", SOFTWARE_NAME);
 
