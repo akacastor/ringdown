@@ -323,16 +323,17 @@ void passthru_connection( int srcfd, struct sockaddr_in srcaddress, int destfd, 
                     }
                 }
             }
-            else if( do_bot_detect )
-            {   // bot_detect_time has expired
-                flog( LOG_DEBUG, "bot_detect_time expired, %d bytes received from client", serve_client_args->bytes_tx );
-            }
             else
                 do_bot_detect = 0;
         }
         else if( n == 0 )
             break;  // disconnected
 
+        if( do_bot_detect && time(NULL) - connect_start_time >= bot_detect_time )
+        {
+            flog( LOG_DEBUG, "bot_detect_time timed out with %d bytes received from client", serve_client_args->bytes_tx );            
+            do_bot_detect = 0;
+        }
 
         // get timestamp of current time when checking for data from dest (used for escape sequence)
         gettimeofday( &current_timeval, NULL );
