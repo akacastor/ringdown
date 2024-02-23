@@ -439,7 +439,7 @@ void passthru_connection( int srcfd, struct sockaddr_in srcaddress, int destfd, 
                             close( destfd );
                             add_to_ban_list( srcaddress.sin_addr );
                             flog( LOG_INFO, "banned IP %s for %d minutes for login attempt '%s'", inet_ntoa(srcaddress.sin_addr), check_banned(srcaddress.sin_addr), str_ptr );
-                            for( n=0; n<bot_sleep_time; n++ )
+                            for( i=0; i<bot_sleep_time; i++ )
                             {
                                 txcharbuf[0] = '\r';
                                 if( write( srcfd, txcharbuf, 1 ) < 0 )
@@ -923,6 +923,8 @@ int main(int argc, char *argv[])
     ban_list_mtime = fstat_buf.st_mtime;        // save last modification time of ban_list
 
     restore_ban_list(ban_list_filename);
+
+    signal( SIGPIPE, SIG_IGN );                 // ignore signal that pipe was disconnected (client disconnection)
 
     ban_list_mutex = (pthread_mutex_t *)calloc(1,sizeof(pthread_mutex_t));
     if( !ban_list_mutex )
