@@ -355,6 +355,8 @@ void passthru_connection( int srcfd, struct sockaddr_in srcaddress, int destfd, 
     int i;
     char client_text[1024];     // data sent by client when first connected - used for detecting bots to apply bans
     int client_text_len = 0;
+    char client_text_nonprintable[1024];     // client_text including nonprintable chars
+    int client_text_nonprintable_len = 0;
     time_t connect_start_time;
     int do_bot_detect = 1;
     char *str_ptr;
@@ -399,6 +401,10 @@ void passthru_connection( int srcfd, struct sockaddr_in srcaddress, int destfd, 
                 client_text_len += n;
                 if( client_text_len > sizeof(client_text) )
                     client_text_len = sizeof(client_text);
+                memcpy( client_text_nonprintable+client_text_nonprintable_len, rxcharbuf, client_text_nonprintable_len + n < sizeof(client_text_nonprintable) ? n : sizeof(client_text_nonprintable)-client_text_nonprintable_len );
+                client_text_nonprintable_len += n;
+                if( client_text_nonprintable_len > sizeof(client_text_nonprintable) )
+                    client_text_nonprintable_len = sizeof(client_text_nonprintable);
 
                 if( memchr( client_text, 0x1B, client_text_len ) )
                 {   // Esc was received - users press this to enter BBS, disable bot detection after this point
@@ -452,21 +458,21 @@ void passthru_connection( int srcfd, struct sockaddr_in srcaddress, int destfd, 
         {
             text_buf[0] = '\0';
             n = 0;
-            for( i=0; i<client_text_len && n+1<sizeof(text_buf); i++ )
+            for( i=0; i<client_text_nonprintable_len && n+1<sizeof(text_buf); i++ )
             {
-                if( client_text[i] >= 0x20 && client_text[i] < 0x7F )
+                if( client_text_nonprintable[i] >= 0x20 && client_text_nonprintable[i] < 0x7F )
                 {
                     if( n+1 >= sizeof(text_buf) )
                         break;
-                    text_buf[n++] = client_text[i];
+                    text_buf[n++] = client_text_nonprintable[i];
                     text_buf[n] = '\0';
                 }
                 else if( n+4 < sizeof(text_buf) )
                 {
                     text_buf[n++] = '\\';
                     text_buf[n++] = 'x';
-                    text_buf[n++] = (client_text[i]>>4) <= 9 ? '0' + (client_text[i]>>4) : 'A' + (client_text[i]>>4) - 0xA;
-                    text_buf[n++] = (client_text[i]&0xF) <= 9 ? '0' + (client_text[i]&0xF) : 'A' + (client_text[i]&0xF) - 0xA;
+                    text_buf[n++] = (client_text_nonprintable[i]>>4) <= 9 ? '0' + (client_text_nonprintable[i]>>4) : 'A' + (client_text_nonprintable[i]>>4) - 0xA;
+                    text_buf[n++] = (client_text_nonprintable[i]&0xF) <= 9 ? '0' + (client_text_nonprintable[i]&0xF) : 'A' + (client_text_nonprintable[i]&0xF) - 0xA;
                     text_buf[n] = '\0';
                 }
             }
