@@ -343,6 +343,14 @@ void passthru_connection( int srcfd, struct sockaddr_in srcaddress, int destfd, 
                     text_buf[n++] = client_text[i];
                     text_buf[n] = '\0';
                 }
+                else if( n+4 < sizeof(text_buf) )
+                {
+                    text_buf[n++] = '\\';
+                    text_buf[n++] = 'x';
+                    text_buf[n++] = (client_text[i]>>4) <= 9 ? '0' + (client_text[i]>>4) : 'A' + (client_text[i]>>4) - 0xA;
+                    text_buf[n++] = (client_text[i]&0xF) <= 9 ? '0' + (client_text[i]&0xF) : 'A' + (client_text[i]&0xF) - 0xA;
+                    text_buf[n] = '\0';
+                }
             }
             flog( LOG_DEBUG, "bot_detect_time timed out with %d bytes received from client: '%s'", serve_client_args->bytes_tx, text_buf );
             do_bot_detect = 0;
