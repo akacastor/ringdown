@@ -30,6 +30,13 @@
 #include "cbuf.h"
 
 
+char log_filename[1024] = "ringdown.log";
+char conf_filename[1024] = "ringdown.conf";
+char ban_list_filename[1024] = "ringdown.ban";
+
+time_t ban_list_mtime;          // last modification time of ban_list_filename
+
+
 int default_connecttime = 5;    // 5 second timeout attempting to connect to each destaddr
 
 struct _listenaddr *listenaddr = NULL;
@@ -68,6 +75,111 @@ struct _serve_client_args
     unsigned long bytes_rx;
     unsigned long bytes_tx;
 };
+
+
+void save_ban_list(char *filename)
+{
+    int i;
+    FILE *ban_list_file;
+    
+    
+    if( !filename )
+        return;
+
+    ban_list_file = fopen(filename, "wt");
+    if( !ban_list_file )
+    {
+        flog( LOG_ERROR, "unable to open ban_list file: %s", filename );
+        return;
+    }
+    
+    for( i=0; i<num_ban_list; i++ )
+        fprintf( ban_list_file, "%s %lu %d\n", inet_ntoa(ban_list[i].addr), ban_list[i].expire_time, ban_list[i].count );
+
+    fclose( ban_list_file );
+
+    
+    return;
+}
+
+
+void restore_ban_list(char *ban_list_filename)
+{
+    FILE *ban_list_file;
+    char line_str[1024];
+    char *tok;
+    char sep[]=" \t\r\n";
+    struct in_addr addr;
+    time_t expire_time;
+    int count;
+    int i;
+    
+    
+    if( !ban_list_filename )
+        return;
+
+    ban_list_file = fopen(ban_list_filename, "rt");
+    if( !ban_list_file )
+    {
+        flog( LOG_ERROR, "unable to open ban_list file: %s", ban_list_filename );
+        return;
+    }
+    
+    while( !feof(ban_list_file) && !ferror(ban_list_file) )
+    {
+        if( !fgets( line_str, sizeof(line_str), ban_list_file ) )
+            break;
+        
+        tok = strtok( line_str, sep );
+        if( !tok )
+            continue;
+            
+        addr.s_addr = inet_addr( tok );
+
+        tok = strtok( NULL, sep );
+        if( !tok )
+            continue;
+
+        expire_time = strtoul( tok, NULL, 0 );
+        
+        tok = strtok( NULL, sep );
+        if( !tok )
+            continue;
+
+        count = strtol( tok, NULL, 0 );
+
+        if( addr.s_addr == 0 )
+            continue;       // invalid IP address - not a valid ban line        
+        
+
+        for( i=0; i<num_ban_list; i++ )
+        {
+            if( addr.s_addr == ban_list[i].addr.s_addr )
+                break;
+        }
+        if( i >= num_ban_list )
+        {
+            num_ban_list++;
+            ban_list = (struct _ip_ban *)realloc(ban_list, sizeof(struct _ip_ban) * num_ban_list);
+            if( !ban_list )
+            {
+                num_ban_list = 0;
+                flog( LOG_ERROR, "unable to realloc ban_list" );
+                break;
+            }
+            i = num_ban_list-1;
+        }
+        
+        ban_list[i].addr = addr;
+        ban_list[i].expire_time = expire_time;
+        ban_list[i].count = count;
+    }
+    
+    fclose( ban_list_file );
+
+    
+    return;
+}
 
 
 // returns # of minutes remaining in ban, or 0 if not banned
@@ -128,6 +240,7 @@ int add_to_ban_list( struct in_addr banaddr )
 {
     int idx;
     int expire_time;
+    struct stat fstat_buf;
 
 
     idx = check_ban_list(banaddr);
@@ -163,6 +276,12 @@ int add_to_ban_list( struct in_addr banaddr )
     if( expire_time > ban_list[idx].expire_time )
         ban_list[idx].expire_time = expire_time;
     
+    // save the updated ban list to disk
+    save_ban_list( ban_list_filename );
+    memset( &fstat_buf, 0, sizeof(struct stat) );
+    stat( ban_list_filename, &fstat_buf );
+    ban_list_mtime = fstat_buf.st_mtime;    // update ban_list_mtime so we don't instantly reload it from disk
+
     pthread_mutex_unlock(ban_list_mutex);
 
 
@@ -711,110 +830,6 @@ void INThandler(int sig)
 }
 
 
-void save_ban_list(char *ban_list_filename)
-{
-    int i;
-    FILE *ban_list_file;
-    
-    
-    if( !ban_list_filename )
-        return;
-
-    ban_list_file = fopen(ban_list_filename, "wt");
-    if( !ban_list_file )
-    {
-        flog( LOG_ERROR, "unable to open ban_list file: %s", ban_list_filename );
-        return;
-    }
-    
-    for( i=0; i<num_ban_list; i++ )
-        fprintf( ban_list_file, "%s %lu %d\n", inet_ntoa(ban_list[i].addr), ban_list[i].expire_time, ban_list[i].count );
-
-    fclose( ban_list_file );
-
-    
-    return;
-}
-
-
-void restore_ban_list(char *ban_list_filename)
-{
-    FILE *ban_list_file;
-    char line_str[1024];
-    char *tok;
-    char sep[]=" \t\r\n";
-    struct in_addr addr;
-    time_t expire_time;
-    int count;
-    int i;
-    
-    
-    if( !ban_list_filename )
-        return;
-
-    ban_list_file = fopen(ban_list_filename, "rt");
-    if( !ban_list_file )
-    {
-        flog( LOG_ERROR, "unable to open ban_list file: %s", ban_list_filename );
-        return;
-    }
-    
-    while( !feof(ban_list_file) && !ferror(ban_list_file) )
-    {
-        if( !fgets( line_str, sizeof(line_str), ban_list_file ) )
-            break;
-        
-        tok = strtok( line_str, sep );
-        if( !tok )
-            continue;
-            
-        addr.s_addr = inet_addr( tok );
-
-        tok = strtok( NULL, sep );
-        if( !tok )
-            continue;
-
-        expire_time = strtoul( tok, NULL, 0 );
-        
-        tok = strtok( NULL, sep );
-        if( !tok )
-            continue;
-
-        count = strtol( tok, NULL, 0 );
-
-        if( addr.s_addr == 0 )
-            continue;       // invalid IP address - not a valid ban line        
-        
-
-        for( i=0; i<num_ban_list; i++ )
-        {
-            if( addr.s_addr == ban_list[i].addr.s_addr )
-                break;
-        }
-        if( i >= num_ban_list )
-        {
-            num_ban_list++;
-            ban_list = (struct _ip_ban *)realloc(ban_list, sizeof(struct _ip_ban) * num_ban_list);
-            if( !ban_list )
-            {
-                num_ban_list = 0;
-                flog( LOG_ERROR, "unable to realloc ban_list" );
-                break;
-            }
-            i = num_ban_list-1;
-        }
-        
-        ban_list[i].addr = addr;
-        ban_list[i].expire_time = expire_time;
-        ban_list[i].count = count;
-    }
-    
-    fclose( ban_list_file );
-
-    
-    return;
-}
-
 
 int main(int argc, char *argv[])
 {
@@ -823,11 +838,7 @@ int main(int argc, char *argv[])
     int i;
 	pthread_t *listen_thread_ids;
     int *listen_idxs=NULL;
-    char log_filename[1024] = "ringdown.log";
-    char conf_filename[1024] = "ringdown.conf";
-    char ban_list_filename[1024] = "ringdown.ban";
     struct stat fstat_buf;
-    time_t ban_list_mtime;
 
 
     // parse command-line arguments (argv)                                                
