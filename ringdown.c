@@ -240,6 +240,7 @@ void passthru_connection( int srcfd, struct sockaddr_in srcaddress, int destfd, 
     time_t connect_start_time;
     int do_bot_detect = 1;
     char *str_ptr;
+    char text_buf[1024];
 
 
     // initialize circular buffers to hold data being passed between src (client) and dest
@@ -331,7 +332,18 @@ void passthru_connection( int srcfd, struct sockaddr_in srcaddress, int destfd, 
 
         if( do_bot_detect && time(NULL) - connect_start_time >= bot_detect_time )
         {
-            flog( LOG_DEBUG, "bot_detect_time timed out with %d bytes received from client", serve_client_args->bytes_tx );            
+            n = 0;
+            for( i=0; i<client_text_len; i++ )
+            {
+                if( client_text[i] >= 0x20 && client_text[i] < 0x7F )
+                {
+                    if( n >= sizeof(text_buf) )
+                        break;
+                    text_buf[n++] = client_text[i];
+                    text_buf[n] = '\0';
+                }
+            }
+            flog( LOG_DEBUG, "bot_detect_time timed out with %d bytes received from client: '%s'", serve_client_args->bytes_tx, text_buf );
             do_bot_detect = 0;
         }
 
