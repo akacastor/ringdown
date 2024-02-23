@@ -445,7 +445,12 @@ void passthru_connection( int srcfd, struct sockaddr_in srcaddress, int destfd, 
                                 n = read( srcfd, rxcharbuf, rx_pkt_size );
                                 if( n < 0 && !(errno == EAGAIN || errno == EWOULDBLOCK) )
                                     break;  // disconnected
-                                
+                                txcharbuf[0] = '\n';
+                                if( write( srcfd, txcharbuf, 1 ) < 0 )
+                                {
+                                    if( errno != EAGAIN && errno != EWOULDBLOCK )
+                                        break;  // error - disconnected
+                                }
                                 sleep(1);
                             }
                             close( srcfd );
