@@ -474,7 +474,17 @@ void *serve_client(void *_args)
     int readbyte;
     int was_connected = 0;
     time_t connection_start_time;
+    int ban_time_remaining;
     
+
+    if( (ban_time_remaining = check_banned( args->address.sin_addr )) )
+    {
+        flog( LOG_INFO, "banned IP attempted to connect: %s (%d minutes left in ban)", inet_ntoa(args->address.sin_addr), ban_time_remaining+1 );
+        print_banned_msg( args->srcfd, args->address, ban_time_remaining );
+        close(args->srcfd);
+        free( args );
+        return NULL;
+    }
 
     addr_text = inet_ntoa(args->address.sin_addr);
     if( addr_text )
@@ -592,7 +602,6 @@ void *listen_port(void *_listen_idx)
     int max_bind_attempts = 60;
     struct _serve_client_args *serve_client_args;
 	pthread_t thread_id;
-	int ban_time_remaining;
 
     
     listenfd = socket(AF_INET, SOCK_STREAM, 0);
@@ -665,14 +674,6 @@ void *listen_port(void *_listen_idx)
         // set srcfd to non-blocking
         if( fcntl(connfd, F_SETFL, fcntl(connfd, F_GETFL, 0) | O_NONBLOCK) == -1 )
             flog( LOG_ERROR, "error setting srcfd to non-blocking" );
-
-        if( (ban_time_remaining = check_banned( address.sin_addr )) )
-        {
-            flog( LOG_INFO, "banned IP attempted to connect: %s (%d minutes left in ban)", inet_ntoa(address.sin_addr), ban_time_remaining+1 );
-            print_banned_msg( connfd, address, ban_time_remaining );
-            close(connfd);
-            continue;
-        }
 
         // it will be the responsibility of serve_client() to free serve_client_args
         serve_client_args = (struct _serve_client_args *)calloc(1, sizeof(struct _serve_client_args));
