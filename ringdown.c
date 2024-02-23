@@ -441,11 +441,7 @@ void passthru_connection( int srcfd, struct sockaddr_in srcaddress, int destfd, 
                             flog( LOG_INFO, "banned IP %s for %d minutes for login attempt '%s'", inet_ntoa(srcaddress.sin_addr), check_banned(srcaddress.sin_addr), str_ptr );
                             for( i=0; i<bot_sleep_time; i++ )
                             {
-                                // check for data from source
-                                n = read( srcfd, rxcharbuf, rx_pkt_size );
-                                if( n < 0 && !(errno == EAGAIN || errno == EWOULDBLOCK) )
-                                    break;  // disconnected
-                                txcharbuf[0] = '\n';
+                                txcharbuf[0] = '\r';
                                 if( write( srcfd, txcharbuf, 1 ) < 0 )
                                 {
                                     if( errno != EAGAIN && errno != EWOULDBLOCK )
