@@ -745,6 +745,7 @@ void restore_ban_list(char *ban_list_filename)
     struct in_addr addr;
     time_t expire_time;
     int count;
+    int i;
     
     
     if( !ban_list_filename )
@@ -783,18 +784,28 @@ void restore_ban_list(char *ban_list_filename)
         if( addr.s_addr == 0 )
             continue;       // invalid IP address - not a valid ban line        
         
-        num_ban_list++;
-        ban_list = (struct _ip_ban *)realloc(ban_list, sizeof(struct _ip_ban) * num_ban_list);
-        if( !ban_list )
+
+        for( i=0; i<num_ban_list; i++ )
         {
-            num_ban_list = 0;
-            flog( LOG_ERROR, "unable to realloc ban_list" );
-            break;
+            if( addr.s_addr == ban_list[i].addr.s_addr )
+                break;
+        }
+        if( i >= num_ban_list )
+        {
+            num_ban_list++;
+            ban_list = (struct _ip_ban *)realloc(ban_list, sizeof(struct _ip_ban) * num_ban_list);
+            if( !ban_list )
+            {
+                num_ban_list = 0;
+                flog( LOG_ERROR, "unable to realloc ban_list" );
+                break;
+            }
+            i = num_ban_list-1;
         }
         
-        ban_list[num_ban_list-1].addr = addr;
-        ban_list[num_ban_list-1].expire_time = expire_time;
-        ban_list[num_ban_list-1].count = count;
+        ban_list[i].addr = addr;
+        ban_list[i].expire_time = expire_time;
+        ban_list[i].count = count;
     }
     
     fclose( ban_list_file );
