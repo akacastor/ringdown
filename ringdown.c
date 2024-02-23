@@ -6,8 +6,6 @@
 //TODO - could fix dosbox broken telnet emulation for zmodem uploads?
 //       how to detect this?  smart algorithm would identify zmodem downloads and the crc errors ?  (ambitious)
 
-//TODO - detect when ringdown.ban has been updated and reload it from disk (to allow manually adding IPs to ban)
-
 
 #include <sys/socket.h>
 #include <netinet/in.h>
