@@ -471,7 +471,7 @@ void passthru_connection( int srcfd, struct sockaddr_in srcaddress, int destfd, 
                 {
                     text_buf[n++] = '\\';
                     text_buf[n++] = 'x';
-                    text_buf[n++] = (client_text_nonprintable[i]>>4) <= 9 ? '0' + (client_text_nonprintable[i]>>4) : 'A' + (client_text_nonprintable[i]>>4) - 0xA;
+                    text_buf[n++] = ((client_text_nonprintable[i]>>4)&0xF) <= 9 ? '0' + ((client_text_nonprintable[i]>>4)&0xF) : 'A' + ((client_text_nonprintable[i]>>4)&0xF) - 0xA;
                     text_buf[n++] = (client_text_nonprintable[i]&0xF) <= 9 ? '0' + (client_text_nonprintable[i]&0xF) : 'A' + (client_text_nonprintable[i]&0xF) - 0xA;
                     text_buf[n] = '\0';
                 }
