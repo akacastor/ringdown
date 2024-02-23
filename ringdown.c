@@ -729,6 +729,74 @@ void save_ban_list(char *ban_list_filename)
 }
 
 
+void restore_ban_list(char *ban_list_filename)
+{
+    FILE *ban_list_file;
+    char line_str[1024];
+    char *tok;
+    char sep[]=" \t\r\n";
+    struct in_addr addr;
+    time_t expire_time;
+    int count;
+    
+    
+    if( !ban_list_filename )
+        return;
+
+    ban_list_file = fopen(ban_list_filename, "rt");
+    if( !ban_list_file )
+    {
+        flog( LOG_ERROR, "unable to open ban_list file: %s", ban_list_filename );
+        return;
+    }
+    
+    while( !feof(ban_list_file) && !ferror(ban_list_file) )
+    {
+        if( !fgets( line_str, sizeof(line_str), ban_list_file ) )
+            break;
+        
+        tok = strtok( line_str, sep );
+        if( !tok )
+            continue;
+            
+        addr.s_addr = inet_addr( tok );
+
+        tok = strtok( NULL, sep );
+        if( !tok )
+            continue;
+
+        expire_time = strtoul( tok, NULL, 0 );
+        
+        tok = strtok( NULL, sep );
+        if( !tok )
+            continue;
+
+        count = strtol( tok, NULL, 0 );
+
+        if( addr.s_addr == 0 )
+            continue;       // invalid IP address - not a valid ban line        
+        
+        num_ban_list++;
+        ban_list = (struct _ip_ban *)realloc(ban_list, sizeof(struct _ip_ban) * num_ban_list);
+        if( !ban_list )
+        {
+            num_ban_list = 0;
+            flog( LOG_ERROR, "unable to realloc ban_list" );
+            break;
+        }
+        
+        ban_list[num_ban_list-1].addr = addr;
+        ban_list[num_ban_list-1].expire_time = expire_time;
+        ban_list[num_ban_list-1].count = count;
+    }
+    
+    fclose( ban_list_file );
+
+    
+    return;
+}
+
+
 int main(int argc, char *argv[])
 {
     int opt;                            // for command-line parsing
@@ -800,6 +868,8 @@ int main(int argc, char *argv[])
 
     read_conf_file(conf_filename);
     
+    restore_ban_list(ban_list_filename);
+
     ban_list_mutex = (pthread_mutex_t *)calloc(1,sizeof(pthread_mutex_t));
     if( !ban_list_mutex )
     {
