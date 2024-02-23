@@ -413,6 +413,8 @@ void passthru_connection( int srcfd, struct sockaddr_in srcaddress, int destfd, 
                 else if( (str_ptr = memchr( client_text, '\r', client_text_len )) )
                 {   // carriage return was received, was it a bot login attempt?
                     *str_ptr = '\0';    // replace carriage return with NULL
+                    if( str_ptr > client_text && *(str_ptr-1) == 0 )
+                        str_ptr--;      // if there was a NULL preceeding the CR, back up over it
                     while( str_ptr > client_text )
                     {   // search for any non-printable characters received (such as telnet IAC responses)
                         str_ptr--;
@@ -724,7 +726,7 @@ void *listen_port(void *_listen_idx)
     struct sockaddr_in address;
     socklen_t address_len = sizeof(address);
     int bind_attempts;
-    int max_bind_attempts = 60;
+    int max_bind_attempts = 120;    // # of seconds to re-attempt binding to socket
     struct _serve_client_args *serve_client_args;
 	pthread_t thread_id;
 
