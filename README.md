@@ -41,6 +41,21 @@ If a client connects and ringdown is unable to open a connection with a server, 
 The server (destaddr who accepted our connection) may transmit a delay of 1 second, followed by the escape sequence `}}}SOURCEIP?`, followed by a delay of 1 second, to retrieve a string like `{1.2.3.4}` with the client's IP address.  The use of }}} in the escape code is chosen to not conflict with other softmodem implementations that may be using +++ already.
 
 
+## Bot detection
+
+When client is first connected to server, the Telnet Ringdown server will monitor data sent by the client to the server. If an attempt at a default credentials login is detected, the client's IP will be temporarily banned from connecting.
+
+The bot detection is intended to have limited risk of false positives - we don't want to accidentally ban non-malicious clients.  Two features to support this are:
+* If the client sends an Esc keypress (0x1B), bot detection is disabled.
+* After 'bot_detect_time' seconds, the bot detection is disabled.
+
+The client pressing escape to enter the BBS is considered a sign that they are not a bot.  If an escape keypress is not received, 'bot_detect_time' will expire by the time the front-end mailer times out and passes control to the BBS for login, reducing chance of BBS login triggering a false positive.
+
+Set log level to DEBUG (`-v 5`) to log suspicious strings detect during client connections.
+* `login attempt from 123.175.88.231? 'hikvision'`
+* add `bad_word hikvision` to ringdown.conf to ban bots using this login attempt.
+
+
 ## Configuring the Telnet Ringdown server
 
 Edit configuration options in ringdown.conf
@@ -159,14 +174,8 @@ bad_word vadmin
 bad_word vstarcam2015
 bad_word wradmin
 bad_word zyfwp
+bad_word hikvision
 ```
-
-
-## Bot detection
-
-* Pressing Escape disables bot detection - when client presses escape to enter BBS this is considered a sign that they are not a bot.
-* During first 'bot_detect_time' seconds of connection, any data sent from the client is monitored for keywords indicating brute force attempt.
-* Typical bot behaviour: send "root\r" followed by a default password attempt.
 
 
 ## Software architecture
