@@ -931,9 +931,11 @@ int main(int argc, char *argv[])
             stat( ban_list_filename, &fstat_buf );
             ban_list_mtime = fstat_buf.st_mtime;        // save last modification time of ban_list
 
+            flog( LOG_INFO, "reloading ban_list '%s'", ban_list_filename );
+
             pthread_mutex_lock(ban_list_mutex);
             restore_ban_list(ban_list_filename);
-            pthread_mutex_unlock(ban_list_mutex);
+            pthread_mutex_unlock(ban_list_mutex);           
         }
 
 
