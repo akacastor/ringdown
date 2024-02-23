@@ -332,6 +332,7 @@ void passthru_connection( int srcfd, struct sockaddr_in srcaddress, int destfd, 
 
         if( do_bot_detect && time(NULL) - connect_start_time >= bot_detect_time )
         {
+            text_buf[0] = '\0';
             n = 0;
             for( i=0; i<client_text_len; i++ )
             {
