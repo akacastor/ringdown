@@ -334,7 +334,7 @@ void print_banned_msg( int srcfd, struct sockaddr_in srcaddress, int time_left )
 }
 
 
-void passthru_connection( int srcfd, struct sockaddr_in srcaddress, int destfd, struct in_addr destaddress, unsigned int destport, struct _serve_client_args *serve_client_args )
+int passthru_connection( int srcfd, struct sockaddr_in srcaddress, int destfd, struct in_addr destaddress, unsigned int destport, struct _serve_client_args *serve_client_args )
 {
     int connected = 1;
     const int rxbuf_len = 1024;
@@ -359,19 +359,20 @@ void passthru_connection( int srcfd, struct sockaddr_in srcaddress, int destfd, 
     int do_bot_detect = 1;
     char *str_ptr;
     char text_buf[1024];
+    int connection_status = 0;
 
 
     // initialize circular buffers to hold data being passed between src (client) and dest
     if( !InitCBuf( &srcrxbuf, rxbuf_len ) )
     {
         flog( LOG_ERROR, "unable to allocate srcrxbuf" );
-        return;
+        return connection_status;
     }
     if( !InitCBuf( &destrxbuf, rxbuf_len ) )
     {
         flog( LOG_ERROR, "unable to allocate destrxbuf" );
         FreeCBuf(&srcrxbuf);
-        return;
+        return connection_status;
     }
     
     memset( &last_data_timeval, 0, sizeof(struct timeval) );
@@ -448,6 +449,7 @@ void passthru_connection( int srcfd, struct sockaddr_in srcaddress, int destfd, 
                                 sleep(1);
                             }
                             close( srcfd );
+                            connection_status = -1;     // indicate that destfd and srcfd have been closed
                             break;
                         }
                         else
@@ -595,6 +597,9 @@ void passthru_connection( int srcfd, struct sockaddr_in srcaddress, int destfd, 
     
     FreeCBuf(&srcrxbuf);
     FreeCBuf(&destrxbuf);
+
+    
+    return connection_status;
 }
 
 
@@ -612,6 +617,7 @@ void *serve_client(void *_args)
     int was_connected = 0;
     time_t connection_start_time;
     int ban_time_remaining;
+    int connection_status = 0;
     
 
     if( (ban_time_remaining = check_banned( args->address.sin_addr )) )
@@ -672,20 +678,22 @@ void *serve_client(void *_args)
         }
 
         connection_start_time = time(NULL);
-        passthru_connection( args->srcfd, args->address, destfd, serv_addr.sin_addr, ntohs(serv_addr.sin_port), args );
+        connection_status = passthru_connection( args->srcfd, args->address, destfd, serv_addr.sin_addr, ntohs(serv_addr.sin_port), args );
 
         snprintf( log_text, sizeof(log_text), "%s:%d", inet_ntoa(serv_addr.sin_addr), ntohs(serv_addr.sin_port) );
         flog( LOG_INFO, "disconnected %s from %s (%d seconds) [%d][%d]", inet_ntoa(args->address.sin_addr), log_text, time(NULL)-connection_start_time, args->srcfd, destfd );
 
         if( args->bytes_rx < 1 )
         {   // if there was no traffic then consider the connection unsuccessful and continue to attempt connection to next destaddr[]
-            close(destfd);
+            if( connection_status == 0 )
+                close(destfd);
             continue;
         }
 
         was_connected = 1;
 
-        close(destfd);
+        if( connection_status == 0 )
+            close(destfd);
         
         break;
     }
@@ -718,7 +726,8 @@ void *serve_client(void *_args)
     }
 
 
-    close(args->srcfd);
+    if( connection_status == 0 )
+        close(args->srcfd);
     
     free(args);
 
