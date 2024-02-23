@@ -934,6 +934,9 @@ int main(int argc, char *argv[])
             flog( LOG_INFO, "reloading ban_list '%s'", ban_list_filename );
 
             pthread_mutex_lock(ban_list_mutex);
+            num_ban_list = 0;
+            free(ban_list);
+            ban_list = NULL;
             restore_ban_list(ban_list_filename);
             pthread_mutex_unlock(ban_list_mutex);           
         }
