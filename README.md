@@ -18,11 +18,6 @@ Build in Linux by typing:
 make
 
 
-## Configuring the Telnet Ringdown server
-
-Edit configuration options in ringdown.conf
-
-
 ## Operating the Telnet Ringdown server
 
 Command line options:
@@ -41,13 +36,141 @@ If a client connects and its IP is found in the ban list, the client will be sho
 If a client connects and ringdown is unable to open a connection with a server, the client will be shown the file failed_to_connect.txt and disconnected.
 
 
+## Configuring the Telnet Ringdown server
+
+Edit configuration options in ringdown.conf
+
+```
+; telnet ringdown configuration
+;
+; you must have at least one listenaddr
+; after listenaddr, specify a list of destaddr (one or more)
+
+; listen on address * for all interfaces
+listenaddr  *:23
+
+destaddr 127.0.0.1:2301
+destaddr 127.0.0.1:2302
+destaddr 127.0.0.1:2303
+
+
+;listenaddr  *:2320
+;destaddr 192.168.1.100:2311
+
+
+; failmsg specifies file to send client when no server is available
+; comment out failmsg to disable
+failmsg failed_to_connect.txt
+
+
+; if there is no data from destaddr after 5 seconds of connection, move on to next destaddr
+; this is useful in case a node is hung but the telnet connection is accepted - after 5 seconds we move on
+no_answer_time 5
+
+
+; time (milliseconds) that must be idle before receiving escape sequence from destaddr
+escape_pre_time 800
+
+; time (milliseconds) that must be idle after receiving escape sequence from destaddr
+escape_post_time 800
+
+; escape sequence that will trigger {SOURCEIP} being sent to destaddr
+escape_seq_sourceip }}}SOURCEIP?
+
+
+; ban time in minutes (for first attempt, will be multiplied by ban_multiplier on subsequent bans)
+ban_time 5
+
+; factor by which to increase ban time with each attempt
+ban_multiplier 5
+
+; maximum length of a ban in minutes (10080 = 1 week)
+max_ban_time 10080
+
+bannedmsg banned.txt
+
+; how long to watch for suspicious login attempts, in seconds
+bot_detect_time 20
+
+; how long to leave connection hanging after banning a bot
+bot_sleep_time 30
+
+; list of words (case-insensitive) considered bot login attempts (ie: root, admin)
+bad_word 123
+bad_word 1234
+bad_word Administrator
+bad_word D-Link
+bad_word Epuser
+bad_word MAIL
+bad_word MD110
+bad_word NAU
+bad_word ONTUSER
+bad_word ______
+bad_word aaa
+bad_word admin
+bad_word admintelecom
+bad_word adminttd
+bad_word adtecftp
+bad_word apc
+bad_word beardropper sh shell
+bad_word bin
+bad_word browse
+bad_word cht
+bad_word daemon
+bad_word default
+bad_word fliruser
+bad_word ftp
+bad_word guest
+bad_word guest1
+bad_word home
+bad_word icinga
+bad_word init
+bad_word lnadmin
+bad_word manager
+bad_word mtch
+bad_word nil
+bad_word nobody
+bad_word ont
+bad_word pi
+bad_word remotessh
+bad_word root
+bad_word scmadmin
+bad_word sh
+bad_word steam
+bad_word stratacom
+bad_word super
+bad_word superadmin
+bad_word support
+bad_word supportadmin
+bad_word telecomadmin
+bad_word telnet
+bad_word telnetadmin
+bad_word test
+bad_word ubnt
+bad_word user
+bad_word useradmin
+bad_word usuario
+bad_word vadmin
+bad_word vstarcam2015
+bad_word wradmin
+bad_word zyfwp
+```
+
+
+## Bot detection
+
+* Pressing Escape disables bot detection - when client presses escape to enter BBS this is considered a sign that they are not a bot.
+* During first 'bot_detect_time' seconds of connection, any data sent from the client is monitored for keywords indicating brute force attempt.
+* Typical bot behaviour: send "root\r" followed by a default password attempt.
+
+
 ## Software architecture
 
 ### main()
 
 * read config file
 * for each listenaddr[] create a thread: listen_port()
-* wait
+* watch for updates to ringdown.ban and reload
 
 ### listen_port() (thread)
 
@@ -67,10 +190,3 @@ If a client connects and ringdown is unable to open a connection with a server, 
 * receive data from client and send to dest
 * receive data from dest and send to client
 * bot detection happens here also
-
-
-## Bot detection
-
-* Pressing Escape disables bot detection - when client presses escape to enter BBS this is considered a sign that they are not a bot.
-* During first 'bot_detect_time' seconds of connection, any data sent from the client is monitored for keywords indicating brute force attempt.
-* Typical bot behaviour: send "root\r" followed by a default password attempt.
