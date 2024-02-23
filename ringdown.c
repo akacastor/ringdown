@@ -361,6 +361,8 @@ void passthru_connection( int srcfd, struct sockaddr_in srcaddress, int destfd, 
     int do_bot_detect = 1;
     char *str_ptr;
     char text_buf[1024];
+    int socket_error;
+    socklen_t socket_error_len;
 
 
     // initialize circular buffers to hold data being passed between src (client) and dest
@@ -439,7 +441,17 @@ void passthru_connection( int srcfd, struct sockaddr_in srcaddress, int destfd, 
                             close( destfd );
                             add_to_ban_list( srcaddress.sin_addr );
                             flog( LOG_INFO, "banned IP %s for %d minutes for login attempt '%s'", inet_ntoa(srcaddress.sin_addr), check_banned(srcaddress.sin_addr), str_ptr );
-                            sleep( bot_sleep_time );
+                            for( i=0; i<bot_sleep_time; i++ )
+                            {
+                                socket_error = 0;
+                                socket_error_len = sizeof(socket_error);
+                                if( getsockopt( srcfd, SOL_SOCKET, SO_ERROR, &socket_error, &socket_error_len ) )
+                                    break;                                
+                                if( socket_error )
+                                    break;
+                                
+                                sleep(1);
+                            }
                             close( srcfd );
                             break;
                         }
@@ -755,10 +767,7 @@ void *listen_port(void *_listen_idx)
         bind_attempts++;
         // error binding to socket, error value in errno
         if( bind_attempts == 1 )
-        {
             flog( LOG_ERROR, "unable to bind socket. errno=%d. retrying up to %d seconds...", errno, max_bind_attempts );
-//            printf( "unable to bind socket. errno=%d. retrying up to %d seconds...\n", errno, max_bind_attempts );
-        }
         else
             flog( LOG_DEBUG, "unable to bind socket. errno=%d. retrying up to %d seconds...", errno, max_bind_attempts-bind_attempts+1 );
 
