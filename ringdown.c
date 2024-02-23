@@ -468,6 +468,8 @@ void passthru_connection( int srcfd, struct sockaddr_in srcaddress, int destfd, 
         else if( n == 0 )
             break;  // disconnected
 
+
+        // check if bot_detect_time has elapsed and if so, stop bot detection
         if( do_bot_detect && time(NULL) - connect_start_time >= bot_detect_time )
         {
             text_buf[0] = '\0';
@@ -493,6 +495,7 @@ void passthru_connection( int srcfd, struct sockaddr_in srcaddress, int destfd, 
             flog( LOG_DEBUG, "bot_detect_time timed out with %d bytes received from client: '%s'", serve_client_args->bytes_tx, text_buf );
             do_bot_detect = 0;
         }
+
 
         // get timestamp of current time when checking for data from dest (used for escape sequence)
         gettimeofday( &current_timeval, NULL );
