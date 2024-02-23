@@ -323,6 +323,11 @@ void passthru_connection( int srcfd, struct sockaddr_in srcaddress, int destfd, 
                     }
                 }
             }
+            else if( do_bot_detect )
+            {   // bot_detect_time has expired
+                if( serve_client_args->bytes_tx < 1 )
+                    flog( LOG_DEBUG, "bot_detect_time expired with no data from source" );
+            }
             else
                 do_bot_detect = 0;
         }
