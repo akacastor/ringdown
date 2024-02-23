@@ -14,7 +14,7 @@ Telnet Ringdown server to accept connections and proxy them to a list of address
 * wait
 
 
-### listen_port()
+### listen_port() (thread)
 
 * bind to address:port and listen for a connection
 
@@ -27,7 +27,7 @@ Telnet Ringdown server to accept connections and proxy them to a list of address
 * wait for next connection
 
 
-### serve_client()
+### serve_client() (thread)
 
 * go through destaddr[] list and attempt to connect
 
