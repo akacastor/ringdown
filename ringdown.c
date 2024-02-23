@@ -675,7 +675,7 @@ void *serve_client(void *_args)
         passthru_connection( args->srcfd, args->address, destfd, serv_addr.sin_addr, ntohs(serv_addr.sin_port), args );
 
         snprintf( log_text, sizeof(log_text), "%s:%d", inet_ntoa(serv_addr.sin_addr), ntohs(serv_addr.sin_port) );
-        flog( LOG_INFO, "disconnected %s from %s (%d seconds)", inet_ntoa(args->address.sin_addr), log_text, time(NULL)-connection_start_time );
+        flog( LOG_INFO, "disconnected %s from %s (%d seconds) [%d][%d]", inet_ntoa(args->address.sin_addr), log_text, time(NULL)-connection_start_time, args->srcfd, destfd );
 
         if( args->bytes_rx < 1 )
         {   // if there was no traffic then consider the connection unsuccessful and continue to attempt connection to next destaddr[]
