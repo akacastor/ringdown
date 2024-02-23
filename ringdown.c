@@ -1,15 +1,13 @@
-// telnet ringdown - Chris Gerlinsky, 2024-02-12
-
-//TODO - trap signals and exit cleanly
-
-//TODO - how to pass IP info to destination for callerid?  we don't have any out-of-band
-//           use +++ escape code?  require 1 second delay?
+// telnet ringdown - Chris Gerlinsky, 2024-02-22
 
 //TODO - track traffic on each connection
 //       display CPS for last 5 seconds?
 
 //TODO - could fix dosbox broken telnet emulation for zmodem uploads?
 //       how to detect this?  smart algorithm would identify zmodem downloads and the crc errors ?  (ambitious)
+
+//TODO - detect when ringdown.ban has been updated and reload it from disk (to allow manually adding IPs to ban)
+
 
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -24,6 +22,7 @@
 #include <pthread.h>
 #include <sys/time.h>
 #include <signal.h>
+#include <sys/stat.h>
 
 #include "ringdown.h"
 #include "log.h"
@@ -815,6 +814,8 @@ int main(int argc, char *argv[])
     char log_filename[1024] = "ringdown.log";
     char conf_filename[1024] = "ringdown.conf";
     char ban_list_filename[1024] = "ringdown.ban";
+    struct stat fstat_buf;
+    time_t ban_list_mtime;
 
 
     // parse command-line arguments (argv)                                                
@@ -876,6 +877,11 @@ int main(int argc, char *argv[])
 
     read_conf_file(conf_filename);
     
+
+    memset( &fstat_buf, 0, sizeof(struct stat) );
+    stat( ban_list_filename, &fstat_buf );
+    ban_list_mtime = fstat_buf.st_mtime;        // save last modification time of ban_list
+
     restore_ban_list(ban_list_filename);
 
     ban_list_mutex = (pthread_mutex_t *)calloc(1,sizeof(pthread_mutex_t));
@@ -914,6 +920,22 @@ int main(int argc, char *argv[])
     {
         if( sigint_received )
             break;
+
+
+        memset( &fstat_buf, 0, sizeof(struct stat) );
+        stat( ban_list_filename, &fstat_buf );
+
+        if( fstat_buf.st_mtime != ban_list_mtime )
+        {
+            memset( &fstat_buf, 0, sizeof(struct stat) );
+            stat( ban_list_filename, &fstat_buf );
+            ban_list_mtime = fstat_buf.st_mtime;        // save last modification time of ban_list
+
+            pthread_mutex_lock(ban_list_mutex);
+            restore_ban_list(ban_list_filename);
+            pthread_mutex_unlock(ban_list_mutex);
+        }
+
 
         sleep(1);
     }
