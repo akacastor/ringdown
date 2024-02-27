@@ -349,6 +349,7 @@ int passthru_connection( int srcfd, struct sockaddr_in srcaddress, int destfd, s
     int processed_data;         // flag indicating if any data was processed this round through while() loop
     struct timeval last_data_timeval;
     struct timeval current_timeval;
+    struct timeval last_nonescape_timeval;
     int escape_sequence;        // 0 = no escape sequence started, 1,2,3 = number of +, 4 = 1 second delay measured after +++ (complete)
     int i;
     char client_text[1024];     // data sent by client when first connected - used for detecting bots to apply bans
@@ -376,7 +377,7 @@ int passthru_connection( int srcfd, struct sockaddr_in srcaddress, int destfd, s
     }
     
     memset( &last_data_timeval, 0, sizeof(struct timeval) );
-
+    memset( &last_nonescape_timeval, 0, sizeof(struct timeval) );
 
     connect_start_time = time(NULL);
     while( connected )
@@ -526,9 +527,30 @@ int passthru_connection( int srcfd, struct sockaddr_in srcaddress, int destfd, s
 
                 if( i<n )   // if there are more bytes in rx buffer, there was no delay after escape sequence
                     escape_sequence = 0;
-            }                
+            }
+            else
+            {
+                for( i=0; i<n; i++ )
+                {
+                    if( rxcharbuf[i] != ' ' && rxcharbuf[i] != '\b' )
+                        break;
+                }
+                if( i<n )   // if any thing besides ' ' and '\b' are received, reset escape sequence to 0
+                    escape_sequence = 0;
+            }
             last_data_timeval.tv_sec = current_timeval.tv_sec;
             last_data_timeval.tv_usec = current_timeval.tv_usec;
+
+            for( i=0; i<n; i++ )
+            {
+                if( rxcharbuf[i] != ' ' && rxcharbuf[i] != '\b' )
+                    break;
+            }
+            if( i<n )   // if any thing besides ' ' and '\b' are received, it counts as a non-escape character
+            {
+                last_nonescape_timeval.tv_sec = current_timeval.tv_sec;
+                last_nonescape_timeval.tv_usec = current_timeval.tv_usec;
+            }
         }
         else if( n == 0 )
             break;  // disconnected
