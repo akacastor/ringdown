@@ -5,7 +5,7 @@
 
 
 #define SOFTWARE_NAME       "ringdown"
-#define SOFTWARE_VERSION    "0.52"
+#define SOFTWARE_VERSION    "0.53"
 
 
 extern int default_connecttime;
