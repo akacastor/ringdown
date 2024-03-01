@@ -1,4 +1,4 @@
-# ringdown 0.51
+# ringdown 0.52
 Telnet Ringdown server to accept connections and proxy them to a list of addresses/ports.
 
 
@@ -54,6 +54,16 @@ The client pressing escape to enter the BBS is considered a sign that they are n
 Set log level to DEBUG (`-v 5`) to log suspicious strings detect during client connections.
 * `login attempt from 123.175.88.231? 'hikvision'`
 * add `bad_word hikvision` to ringdown.conf to ban bots using this login attempt.
+
+
+## Binding to ports < 1024 (including telnet port 23)
+
+Some operating systems may not allow applications to bind to ports < 1024.  
+
+In Ubuntu 22 you can use `setcap` to allow the ringdown binary to bind to port 23:
+```
+sudo setcap cap_net_bind_service=ep ringdown
+```
 
 
 ## Configuring the Telnet Ringdown server
@@ -175,6 +185,27 @@ bad_word vstarcam2015
 bad_word wradmin
 bad_word zyfwp
 bad_word hikvision
+```
+
+
+## ringdown.ban file format
+
+```
+192.168.1.101 1709265147 1 0
+192.168.1.234 0 0 12
+```
+
+First column is IP address, second column is unix timestamp of when the ban will expire, third column is number of times the ban has been triggered, fourth column is number of times the IP attempted to connect while banned.
+
+Expiration time of 0 indicates the ban will not expire - the IP will be banned forever.
+
+The number of times ban has been triggered is used to scale the length of bans with `ban_multiplier` in ringdown.conf.
+
+Entries can be added to ringdown.ban, it is not necessary to include the second, third, or fourth columns if you want to set them all to 0 (permanent ban).  If ringdown.ban is modified while ringdown is running, the change will be detected and new entries in the ban list will be recognized.  Note that ringdown will rewrite ringdown.ban any time a banned IP attempts to connect, be aware of conditions where the file may change while open for editing.
+
+To add a (permanent) ban of 192.168.1.246, you might use:
+```
+echo 192.168.1.246 >> ringdown.ban
 ```
 
 
