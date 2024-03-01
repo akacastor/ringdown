@@ -125,8 +125,12 @@ void restore_ban_list(char *ban_list_filename)
     
     while( !feof(ban_list_file) && !ferror(ban_list_file) )
     {
+        addr.s_addr = 0;
+        expire_time = 0;
+        count = 0;
+
         if( !fgets( line_str, sizeof(line_str), ban_list_file ) )
-            break;
+            break;      // end of file
         
         tok = strtok( line_str, sep );
         if( !tok )
@@ -135,20 +139,19 @@ void restore_ban_list(char *ban_list_filename)
         addr.s_addr = inet_addr( tok );
 
         tok = strtok( NULL, sep );
-        if( !tok )
-            continue;
-
-        expire_time = strtoul( tok, NULL, 0 );
+        if( tok )
+        {
+            expire_time = strtoul( tok, NULL, 0 );
         
-        tok = strtok( NULL, sep );
-        if( !tok )
-            continue;
-
-        count = strtol( tok, NULL, 0 );
+            tok = strtok( NULL, sep );
+            if( tok )
+            {
+                count = strtol( tok, NULL, 0 );
+            }
+        }
 
         if( addr.s_addr == 0 )
             continue;       // invalid IP address - not a valid ban line        
-        
 
         for( i=0; i<num_ban_list; i++ )
         {
@@ -201,6 +204,8 @@ int check_banned( struct in_addr banaddr )
         ticks = time(NULL);
         if( ban_list[i].expire_time > ticks )
             ban_time_remaining = (ban_list[i].expire_time - ticks) / 60;
+        else if( ban_list[i].expire_time == 0 )     // expire_time of 0 means infinite
+            ban_time_remaining = -1;
     }
 
     pthread_mutex_unlock(ban_list_mutex);
