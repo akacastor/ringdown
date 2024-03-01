@@ -38,7 +38,7 @@ If a client connects and ringdown is unable to open a connection with a server, 
 
 ## Caller ID
 
-The server (destaddr who accepted our connection) may transmit a delay of 1 second, followed by the escape sequence `}}}SOURCEIP?`, followed by a delay of 1 second, to retrieve a string like `{1.2.3.4}` with the client's IP address.  The use of }}} in the escape code is chosen to not conflict with other softmodem implementations that may be using +++ already.
+The server (destaddr who accepted our connection) may transmit a delay of 1 second, followed by the escape sequence `}}}SOURCEIP?`, followed by a delay of 1 second, to retrieve a string like `{1.2.3.4}\n` with the client's IP address.  The use of }}} in the escape code is chosen to not conflict with other softmodem implementations that may be using +++ already.
 
 
 ## Bot detection
