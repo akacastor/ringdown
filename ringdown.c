@@ -92,7 +92,7 @@ void save_ban_list(char *filename)
     }
     
     for( i=0; i<num_ban_list; i++ )
-        fprintf( ban_list_file, "%s %lu %d\n", inet_ntoa(ban_list[i].addr), ban_list[i].expire_time, ban_list[i].count );
+        fprintf( ban_list_file, "%s %lu %lu %lu\n", inet_ntoa(ban_list[i].addr), ban_list[i].expire_time, ban_list[i].count, ban_list[i].connect_attempts);
 
     fclose( ban_list_file );
 
@@ -109,7 +109,8 @@ void restore_ban_list(char *ban_list_filename)
     char sep[]=" \t\r\n";
     struct in_addr addr;
     time_t expire_time;
-    int count;
+    unsigned long count;
+    unsigned long connect_attempts;
     int i;
     
     
@@ -128,6 +129,7 @@ void restore_ban_list(char *ban_list_filename)
         addr.s_addr = 0;
         expire_time = 0;
         count = 0;
+        connect_attempts = 0;
 
         if( !fgets( line_str, sizeof(line_str), ban_list_file ) )
             break;      // end of file
@@ -147,6 +149,12 @@ void restore_ban_list(char *ban_list_filename)
             if( tok )
             {
                 count = strtol( tok, NULL, 0 );
+        
+                tok = strtok( NULL, sep );
+                if( tok )
+                {
+                    connect_attempts = strtol( tok, NULL, 0 );
+                }
             }
         }
 
@@ -174,6 +182,7 @@ void restore_ban_list(char *ban_list_filename)
         ban_list[i].addr = addr;
         ban_list[i].expire_time = expire_time;
         ban_list[i].count = count;
+        ban_list[i].connect_attempts = connect_attempts;
     }
     
     fclose( ban_list_file );
@@ -184,7 +193,7 @@ void restore_ban_list(char *ban_list_filename)
 
 
 // returns # of minutes remaining in ban, or 0 if not banned
-int check_banned( struct in_addr banaddr )
+int check_banned( struct in_addr banaddr, int do_inc_connect_attempts )
 {
     int i;
     time_t ticks;
@@ -446,7 +455,7 @@ int passthru_connection( int srcfd, struct sockaddr_in srcaddress, int destfd, s
                         {   // found a match - ban this IP
                             close( destfd );
                             add_to_ban_list( srcaddress.sin_addr );
-                            flog( LOG_INFO, "banned IP %s for %d minutes for login attempt '%s'", inet_ntoa(srcaddress.sin_addr), check_banned(srcaddress.sin_addr), str_ptr );
+                            flog( LOG_INFO, "banned IP %s for %d minutes for login attempt '%s'", inet_ntoa(srcaddress.sin_addr), check_banned(srcaddress.sin_addr, 0), str_ptr );
                             for( i=0; i<bot_sleep_time; i++ )
                             {
                                 txcharbuf[0] = '\r';
@@ -650,7 +659,7 @@ void *serve_client(void *_args)
     int connection_status = 0;
     
 
-    if( (ban_time_remaining = check_banned( args->address.sin_addr )) )
+    if( (ban_time_remaining = check_banned( args->address.sin_addr, 1 )) )
     {
         flog( LOG_INFO, "banned IP attempted to connect: %s (%d minutes left in ban)", inet_ntoa(args->address.sin_addr), ban_time_remaining+1 );
         print_banned_msg( args->srcfd, args->address, ban_time_remaining );
