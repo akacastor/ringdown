@@ -215,6 +215,9 @@ int check_banned( struct in_addr banaddr, int do_inc_connect_attempts )
             ban_time_remaining = (ban_list[i].expire_time - ticks) / 60;
         else if( ban_list[i].expire_time == 0 )     // expire_time of 0 means infinite
             ban_time_remaining = -1;
+
+        if( do_inc_connect_attempts )
+            ban_list[i].connect_attempts++;
     }
 
     pthread_mutex_unlock(ban_list_mutex);
