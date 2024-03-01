@@ -221,12 +221,12 @@ echo 192.168.1.246 >> ringdown.ban
 
 * bind to address:port and listen for a connection
 * connection received:
-* check IP address against ban list - display banned msg & disconnect if in list and current
 * create a thread: serve_client()
 * wait for next connection
 
 ### serve_client() (thread)
 
+* check IP address against ban list - display banned msg & disconnect if in list and current
 * go through destaddr[] list and attempt to connect
 * when connection is successful, call passthru_connection() to link client and dest
 
