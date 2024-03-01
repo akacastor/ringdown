@@ -312,7 +312,10 @@ void print_banned_msg( int srcfd, struct sockaddr_in srcaddress, int time_left )
             
             if( readbyte == '`' )
             {   // replace backtick ` with the # of minutes until ban is lifted
-                snprintf( text, sizeof(text), "%d", 1+time_left );
+                if( time_left >= 0 )
+                    snprintf( text, sizeof(text), "%d", 1+time_left );
+                else
+                    snprintf( text, sizeof(text), "NEVER" );
                 
                 if( write( srcfd, text, strlen(text) ) < 1 )
                 {
