@@ -63,7 +63,8 @@ struct _ip_ban
 {
     struct in_addr addr;    
     time_t expire_time;     // timestamp of when the ban expires
-    int count;              // # of times this IP has been banned (length of ban may increase with count)
+    unsigned long count;              // # of times this IP has been banned (length of ban may increase with count)
+    unsigned long connect_attempts;   // # of times this IP has attempted to connect while banned
 };
 
 
