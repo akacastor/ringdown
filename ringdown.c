@@ -552,7 +552,7 @@ int passthru_connection( int srcfd, struct sockaddr_in srcaddress, int destfd, s
             {
                 for( i=0; i<n; i++ )
                 {
-                    if( rxcharbuf[i] != ' ' && rxcharbuf[i] != '\b' )
+                    if( rxcharbuf[i] != ' ' && rxcharbuf[i] != '\b' && rxcharbuf[i] != '\r' )
                         break;
                 }
                 if( i<n )   // if any thing besides ' ' and '\b' are received, reset escape sequence to 0
