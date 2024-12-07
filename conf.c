@@ -305,6 +305,20 @@ int read_conf_file(const char *filename)
             
             flog( LOG_DEBUG, "bot_sleep_time: %d", bot_sleep_time );
         }
+        else if( !strcasecmp( tok, "notify_connection_cmd" ) )
+        {            
+            val = strtok( NULL, filename_sep ); // read until '\n'
+            if( !val )
+            {
+                flog( LOG_ERROR, "conf line %d: notify_connection_cmd requires parameter (command to execute)", line_num );
+                continue;
+            }
+            
+            strncpy( notify_connection_cmd, val, sizeof(notify_connection_cmd) );
+            notify_connection_cmd[sizeof(notify_connection_cmd)-1] = '\0';
+            
+            flog( LOG_DEBUG, "notify_connection_cmd: '%s'", notify_connection_cmd );
+        }
         else
         {
             flog( LOG_ERROR, "conf line %d: unrecognized token '%s'", line_num, tok );

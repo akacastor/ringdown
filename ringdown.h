@@ -22,6 +22,8 @@ extern unsigned int escape_pre_time;    // time (in ms) that must be idle before
 extern unsigned int escape_post_time;    // time (in ms) that must be idle after +++ escape sequence
 extern char escape_seq_sourceip[1024];
 
+extern char notify_connection_cmd[1024];    // command to execute via system() when a connection is established
+
 extern struct _ip_ban *ban_list;
 extern int num_ban_list;
 

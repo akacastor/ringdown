@@ -48,6 +48,8 @@ unsigned int escape_pre_time = 1000;    // time (in ms) that must be idle before
 unsigned int escape_post_time = 1000;    // time (in ms) that must be idle after +++ escape sequence
 char escape_seq_sourceip[1024] = "}}}SOURCEIP?";
 
+char notify_connection_cmd[1024];    // command to execute via system() when a connection is established
+
 struct _ip_ban *ban_list = NULL;
 int num_ban_list = 0;
 int ban_time = 0;                       // ban time in minutes (for first attempt, will be multiplied by ban_multiplier on subsequent bans)
@@ -645,6 +647,31 @@ int passthru_connection( int srcfd, struct sockaddr_in srcaddress, int destfd, s
 }
 
 
+void notify_connection()
+{
+    pid_t pid;
+
+
+    if( !strlen( notify_connection_cmd ) )
+        return;
+
+    flog( LOG_INFO, "notify_connection() calling fork()" );
+    pid = fork();
+    if( pid < 0 )
+    {
+        // failed to fork()
+        flog( LOG_ERROR, "fork() failed in notify_connection()" );
+    }
+    if( pid == 0 )
+    {   // child process
+        system(notify_connection_cmd);
+        exit(EXIT_SUCCESS);
+    }
+
+    return;
+}
+
+
 void *serve_client(void *_args)
 {
     struct _serve_client_args *args = (struct _serve_client_args *)_args;
@@ -718,6 +745,8 @@ void *serve_client(void *_args)
             snprintf( log_text, sizeof(log_text), "%s", inet_ntoa(args->address.sin_addr) );
             flog( LOG_INFO, "connected %s to %s:%d", log_text, inet_ntoa(serv_addr.sin_addr), ntohs(serv_addr.sin_port) );
         }
+
+        notify_connection();
 
         connection_start_time = time(NULL);
         connection_status = passthru_connection( args->srcfd, args->address, destfd, serv_addr.sin_addr, ntohs(serv_addr.sin_port), args );
